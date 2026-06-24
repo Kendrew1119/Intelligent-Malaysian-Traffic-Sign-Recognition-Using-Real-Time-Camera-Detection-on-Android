@@ -1,0 +1,13 @@
+[
+  {
+    "signId": 0,
+    "nameEn": "Speed Limit 5",
+    "nameBm": "Had Laju 5",
+    "descriptionEn": "Speed limit five kilometers per hour. Drive very slowly.",
+    "descriptionBm": "Had laju lima kilometer sejam. Pandu dengan sangat perlahan.",
+    "category": "prohibitory",
+    "severity": "caution",
+    "shape": "circle",
+    "color": "red"
+  }
+]

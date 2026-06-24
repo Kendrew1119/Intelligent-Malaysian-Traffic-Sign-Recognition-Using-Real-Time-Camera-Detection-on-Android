@@ -1,0 +1,101 @@
+# ============================================
+# MYSignVoice - Android + C++ + Python Project
+# ============================================
+
+# --- Android / Gradle ---
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+/app/build/
+/captures
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# --- Kotlin / Java ---
+*.class
+*.jar
+*.war
+
+# --- C++ / CMake ---
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+Makefile
+*.o
+*.so
+*.a
+*.dylib
+*.dll
+*.exe
+*.out
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# --- ML Model Files (too large for git) ---
+*.pt
+*.pth
+*.onnx
+*.param
+*.bin
+*.tflite
+*.weights
+# Exception: keep the .gitkeep files
+!.gitkeep
+
+# --- Dataset Images (collect locally, too large for git) ---
+/dataset/raw_images/*
+/dataset/annotated/train/images/*
+/dataset/annotated/train/labels/*
+/dataset/annotated/val/images/*
+/dataset/annotated/val/labels/*
+/dataset/annotated/test/images/*
+/dataset/annotated/test/labels/*
+!/dataset/**/.gitkeep
+
+# --- Color Inputs (provided test images - keep these) ---
+# Uncomment below if you want to exclude them from git:
+# /Color Inputs/
+
+# --- IDE / Editor ---
+.vscode/
+*.swp
+*.swo
+*~
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- Environment files ---
+.env
+.env.local
+
+# --- Logs ---
+*.log
+
+# --- Temporary ---
+/scratch/
+*.tmp
