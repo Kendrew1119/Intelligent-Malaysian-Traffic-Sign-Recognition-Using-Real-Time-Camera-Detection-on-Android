@@ -25,6 +25,7 @@ Out of the **9 papers** uploaded to [literature_review_paper](file:///c:/Users/B
 | [Paper 7](file:///c:/Users/B2B/Desktop/miniproject/literature_review_paper/mathematics-12-00297-v2.pdf) | *Traffic Sign Detection and Recognition Using YOLO Object Detection Algorithm: A Systematic Review* | **Review Paper (Systematic Review)** | **✅ CAN BE USED** | YOLO algorithms in TSDR (SLR 2016-2022) |
 | [Paper 8](file:///c:/Users/B2B/Desktop/miniproject/literature_review_paper/Neural-Network-Based_Traffic_Sign_Detection_and_Recognition_in_High-Definition_Images_Using_Region_Focusing_and_Parallelization.pdf) | *Neural-Network-Based Traffic Sign Detection and Recognition in High-Definition Images Using Region Focusing and Parallelization* | **Research Paper** | **✅ CAN BE USED** | YOLO optimization & region of interest (ROI) parallelization |
 | [Paper 9](file:///c:/Users/B2B/Desktop/miniproject/literature_review_paper/sensors-19-02093.pdf) | *Vision-Based Traffic Sign Detection and Recognition Systems: Current Trends and Challenges* | **Review Paper** | **✅ CAN BE USED** | Comprehensive review of TSDR trends, datasets, and challenges |
+| [Paper 10](file:///c:/Users/B2B/Desktop/miniproject/literature_review_paper/Traffic_Sign_Detection_Under_Adverse_Environmental_Conditions_Based_on_CNN.pdf) | *Traffic Sign Detection Under Adverse Environmental Conditions Based on CNN* | **Research Paper** | **✅ CAN BE USED** | CNN optimization & robustness in adverse weather |
 
 ---
 
@@ -145,6 +146,20 @@ Out of the **9 papers** uploaded to [literature_review_paper](file:///c:/Users/B
 
 ---
 
+#### 📄 Paper 10: Traffic Sign Detection Under Adverse Environmental Conditions Based on CNN
+* **File**: `Traffic_Sign_Detection_Under_Adverse_Environmental_Conditions_Based_on_CNN.pdf`
+* **Paper Type**: **Research Paper**
+* **Relevance for Member 4 (Optimization Focus)**: **Extremely High**
+* **Technical Contribution**:
+  * Focuses on improving Convolutional Neural Network (CNN) accuracy when traffic signs are obscured by adverse environmental conditions like rain, fog, nighttime, or heavy glare.
+  * Details data augmentation and architectural improvements that allow the model to generalize better across varying real-world conditions.
+* **Alignment with the Plan**:
+  * For Member 4, who focuses on techniques to improve accuracy and robustness, this paper provides the exact methodology for how to handle the "Phone-to-Webcam" problem and outdoor deployment challenges.
+  * It theoretically supports the team's plan to augment the 1,000 Malaysian traffic sign images to simulate bad weather and varied lighting.
+* **Why I choose this paper**: I choose this paper because our ultimate goal is an app for visually impaired pedestrians, which must work reliably outdoors. Citing this paper justifies our robust deep learning pipeline and data augmentation strategy to the teacher.
+
+---
+
 ### 2. Papers That CANNOT Be Used
 
 ---
@@ -207,6 +222,7 @@ graph TD
         P7["Paper 7 (Flores-Calero, 2024) <br> YOLO systematic review"]:::canUse
         P8["Paper 8 (Avramović, 2020) <br> Region Focusing / YOLO"]:::canUse
         P9["Paper 9 (Wali et al., 2019) <br> TSDR Trends & Datasets"]:::canUse
+        P10["Paper 10 (CNN Adverse Weather) <br> Environmental Robustness"]:::canUse
     end
 
     subgraph Rejected Papers
@@ -228,6 +244,7 @@ graph TD
     P7 --> Ch2
     P8 --> Ch3
     P7 --> Ch3
+    P10 --> Ch3
     P1 --> Ch4
     P5 --> Ch4
 ```

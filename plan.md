@@ -682,33 +682,30 @@ model.export(format='onnx', imgsz=640, simplify=True)
 
 ---
 
-### Member 4: Accessibility Technology + Mobile AI / Alternative Approaches
+### Member 4: CNN Optimization & Robustness in Adverse Conditions
 
 **Search Keywords**:
 
 | Primary Keywords | Combine With |
 |-----------------|-------------|
-| `assistive technology visually impaired` | `object detection`, `mobile app` |
-| `blind navigation mobile camera` | `real-time`, `text-to-speech` |
-| `accessibility AI visual impairment` | `Android`, `deep learning` |
-| `traffic sign recognition mobile deployment` | `TensorFlow Lite`, `ncnn`, `edge AI` |
-| `alternative traffic sign detection` | `feature extraction`, `SVM`, `template matching` |
-| `on-device machine learning Android` | `model optimization`, `quantization` |
+| `traffic sign detection adverse conditions` | `CNN`, `YOLO`, `weather`, `lighting` |
+| `region focusing traffic signs` | `parallelization`, `high-definition images` |
+| `YOLO algorithm optimization` | `real-time detection`, `accuracy improvement` |
+| `traffic sign recognition robustness` | `data augmentation`, `blur`, `glare` |
+| `deep learning accuracy enhancement` | `feature extraction`, `preprocessing` |
+| `small object detection optimization` | `efficiency`, `edge computing` |
 
 **Key Concepts to Cover in Review**:
-- Existing assistive technology apps for the visually impaired (e.g., Seeing AI by Microsoft, Be My Eyes)
-- Mobile deployment of ML models: TFLite vs ncnn vs ONNX Runtime
-- Model quantization (FP32 → FP16 → INT8) for speed
-- Alternative approaches: HOG + SVM, template matching, feature-based methods
-- Comparison of deep learning vs traditional CV methods for this specific task
-- Human-computer interaction for visually impaired users
-- Text-to-speech systems and accessibility design principles
+- Techniques to improve CNN accuracy in challenging real-world scenarios (rain, night, strong glare).
+- Utilizing data augmentation to train models for environmental robustness.
+- Optimizing YOLO algorithms for real-time, high-accuracy deployment on mobile/edge devices.
+- Hybrid approaches: Region Focusing (preprocessing) combined with parallelization to handle high-definition camera feeds without lagging.
+- Analyzing systematic reviews to justify YOLO as the best architecture for accuracy vs. speed trade-offs.
 
 **Example Papers to Look For**:
-- "A review of assistive technology for the visually impaired"
-- "On-device deep learning inference on mobile devices: a survey"
-- "Traffic sign recognition using HOG features and SVM classifier"
-- "Comparison of traditional and deep learning approaches for traffic sign detection"
+- "Traffic Sign Detection Under Adverse Environmental Conditions Based on CNN" (Paper 10)
+- "Neural-Network-Based Traffic Sign Detection and Recognition in High-Definition Images Using Region Focusing and Parallelization" (Paper 8)
+- "Traffic Sign Detection and Recognition Using YOLO Object Detection Algorithm: A Systematic Review" (Paper 7)
 
 ---
 
