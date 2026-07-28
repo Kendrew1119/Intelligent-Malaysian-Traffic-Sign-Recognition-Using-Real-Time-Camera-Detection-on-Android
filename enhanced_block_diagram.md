@@ -393,7 +393,7 @@ This final system design was created by combining the best elements from Member 
 | YOLOv8 Backbone + BoTNet | Member 3's enhanced design (Paper 3) |
 | Feature Pyramid Network (FPN) | Member 3's enhanced design (Paper 2) |
 | ODConv + LSKA Attention | Member 3's enhanced design (Paper 3) |
-| Region Focusing (Preprocessing) | Member 4's enhanced design (Paper 2) |
+| Region Focusing (Preprocessing) | Member 4's enhanced design (HSV Mask + Morphology) |
 | Weather Data Augmentation (Training) | Member 4's enhanced design (Paper 1) |
 | Accessibility Output (TTS + Vibration) | Member 4's enhanced design (project goal) |
 
@@ -418,9 +418,9 @@ This final system design was created by combining the best elements from Member 
                                       ▼
                          ┌──────────────────────────┐
                          │  OpenCV Region Focusing   │
-                         │  + Hough Transform        │
-                         │  (CPU: Filters background,│
-                         │   detects sign edges)     │
+                         │  (HSV Mask + Morphology)  │
+                         │  (CPU: Isolates colors,   │
+                         │   filters background)     │
                          └────────────┬─────────────┘
                                       │
                                       ▼
@@ -480,7 +480,7 @@ This final system design was created by combining the best elements from Member 
 | :--- | :--- | :--- |
 | **Android CameraX Feed** | Real-world environment captured by user's phone | 1920x1080 RGB bitmap frames at 30 FPS |
 | **Adaptive Image Enhancement** | Raw HD frames | Brightness/contrast corrected frames (handles fog, rain, nighttime) |
-| **OpenCV Region Focusing + Hough Transform** | Enhanced HD frames | Bounding box coordinates of candidate sign regions + edge-enhanced crops |
+| **OpenCV Region Focusing (HSV Mask)** | Enhanced HD frames | Bounding box coordinates of candidate sign regions + edge-enhanced crops |
 | **Candidate Region Crops** | Bounding boxes + enhanced frames | Small 64x64 or 128x128 cropped patches (background discarded) |
 | **YOLOv8-nano Backbone + BoTNet** | Small image crops | Deep feature maps combining local texture and global context |
 | **Feature Pyramid Network (FPN)** | Deep feature maps | Multi-scale feature maps (detects both near and distant signs) |
@@ -494,6 +494,6 @@ This final system design was created by combining the best elements from Member 
 
 This final group design merges the preprocessing strengths of Member 4's Region Focusing pipeline with the deep learning sophistication of Member 3's enhanced YOLOv8 architecture.
 
-The system begins with Adaptive Image Enhancement to correct for the unpredictable outdoor lighting that a visually impaired pedestrian will encounter. The enhanced frame is then passed through the OpenCV Region Focusing layer, which uses fast CPU-based colour and edge checks (including Hough Transform) to locate candidate sign regions and discard the 95% of the image containing irrelevant background. Only the small, focused crops are sent to the YOLOv8-nano backbone integrated with the BoTNet module, which extracts both local texture and global contextual features. The Feature Pyramid Network fuses multi-scale representations so that both near and distant signs are detected. The ODConv and LSKA attention modules refine the features to improve accuracy on small or partially occluded signs. Finally, the YOLOv8 detection head outputs the class label and bounding box, which are passed to the Accessibility Output Engine for spoken audio feedback and haptic vibration alerts.
+The system begins with Adaptive Image Enhancement to correct for the unpredictable outdoor lighting that a visually impaired pedestrian will encounter. The enhanced frame is then passed through the OpenCV Region Focusing layer, which uses fast CPU-based HSV colour masking and morphological operations to locate candidate sign regions and discard the 95% of the image containing irrelevant background. Only the small, focused crops are sent to the YOLOv8-nano backbone integrated with the BoTNet module, which extracts both local texture and global contextual features. The Feature Pyramid Network fuses multi-scale representations so that both near and distant signs are detected. The ODConv and LSKA attention modules refine the features to improve accuracy on small or partially occluded signs. Finally, the YOLOv8 detection head outputs the class label and bounding box, which are passed to the Accessibility Output Engine for spoken audio feedback and haptic vibration alerts.
 
 During training (in Google Colab), the model uses weather-based data augmentation (simulated rain, fog, glare) and the WIoU loss function to ensure the model generalizes well to real Malaysian road conditions.
