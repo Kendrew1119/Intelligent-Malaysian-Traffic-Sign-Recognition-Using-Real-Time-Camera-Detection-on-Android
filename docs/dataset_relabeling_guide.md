@@ -24,6 +24,14 @@ Since you have 40 classes, you need to collect roughly 800 images total.
 4. When it asks for a class name, type exactly the name you wrote in your Excel sheet. 
    * *Crucial:* Do not make typos. `Speed_Limit` and `speed_limit` will become two different classes. Be consistent!
 
+## Phase 3.5: Team Collaboration (How to work together)
+You can easily invite your groupmates to Roboflow so everyone can upload and label at the same time!
+1. **Invite Teammates:** In your Roboflow project, go to **Settings** (gear icon) > **Workspace** > **Members**. Click **Invite Members** and type in your groupmates' email addresses.
+2. **Divide the Work:** Since there are ~40 classes, split them up! If you have 4 members, assign 10 specific classes to each person.
+   * *Example:* Member 1 does all "Speed Limit" signs, Member 2 does all "No Parking/U-Turn" signs, etc.
+3. **Labeling Together:** You can all be logged into the same project at the same time. You will see their images pop up, and they will see yours!
+4. **Job Feature:** Roboflow has a "Assign Job" feature in the Annotate tab where you can officially assign specific unlabeled images to a specific teammate so no one accidentally labels the same image twice.
+
 ## Phase 4: Augmentation (Making 800 images act like 2,400)
 Once all 800 images are boxed and labeled:
 1. Go to **Generate New Version**.
