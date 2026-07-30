@@ -206,6 +206,8 @@ def draw_detections(img, detections):
 
         # Color: Green for full-image YOLO, Cyan for crop-enhanced
         color = (0, 255, 0) if source == "full" else (255, 255, 0)
+        if source == "opencv_fallback":
+            color = (0, 0, 255) # Red for fallback
 
         cv2.rectangle(result, (x1, y1), (x2, y2), color, 2)
 
@@ -264,7 +266,7 @@ def create_grid(original, hsv_mask, regions_img, annotated, cls_name, conf, file
     cv2.putText(p6, "2. Region Extraction", (10, 95), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
     cv2.putText(p6, "3. YOLO Full Image", (10, 125), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
     cv2.putText(p6, "4. YOLO on Crops", (10, 155), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
-    cv2.putText(p6, "5. Merge & Deduplicate", (10, 185), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+    cv2.putText(p6, "5. Fallback to OpenCV", (10, 185), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 150, 255), 1)
     cv2.putText(p6, f"File: {filename}", (10, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 100, 100), 1)
 
     # Add labels to each panel
@@ -392,12 +394,30 @@ def main():
             merged = merge_detections(full_dets, crop_dets)
 
             # Track detection sources
+            if len(merged) == 0 and len(regions) > 0:
+                # ============================================================
+                # LECTURER'S FALLBACK REQUIREMENT: "Others (color and shape)"
+                # ============================================================
+                # If OpenCV found a valid region, but YOLO didn't recognize it,
+                # we label it as "Others" instead of failing completely.
+                biggest_region = max(regions, key=lambda r: r[2]*r[3])
+                rx, ry, rw, rh = biggest_region
+                fallback_class = f"Others ({color_hint.capitalize()} Sign)"
+                merged.append({
+                    "cls_id": -1,
+                    "cls_name": fallback_class,
+                    "conf": 1.0,
+                    "bbox": (rx, ry, rx+rw, ry+rh),
+                    "source": "opencv_fallback"
+                })
+
             if len(merged) > 0:
                 total_detected += 1
                 folder_detected += 1
 
                 has_full = any(d["source"] == "full" for d in merged)
                 has_crop = any(d["source"] == "crop" for d in merged)
+                is_fallback = any(d["source"] == "opencv_fallback" for d in merged)
 
                 if has_full:
                     total_yolo_only += 1
