@@ -32,21 +32,25 @@ You can easily invite your groupmates to Roboflow so everyone can upload and lab
 3. **Labeling Together:** You can all be logged into the same project at the same time. You will see their images pop up, and they will see yours!
 4. **Job Feature:** Roboflow has a "Assign Job" feature in the Annotate tab where you can officially assign specific unlabeled images to a specific teammate so no one accidentally labels the same image twice.
 
-## Phase 4: Augmentation (Making 800 images act like 2,400)
-Once all 800 images are boxed and labeled:
+## Phase 4: Advanced Augmentation (Aligning with Chapter 2 & 3)
+To hit maximum accuracy and eliminate background noise (false positives), we must use advanced augmentations. This perfectly matches the "Data Augmentation for Adverse Weather" strategy you proposed in your **Chapter 2 Literature Review (Paper 1)**!
+
+Once all images are labeled:
 1. Go to **Generate New Version**.
 2. **Preprocessing:** 
    * Add **Auto-Orient**.
    * Add **Resize** (Stretch to 640x640).
-3. **Augmentation:** (This is how you get extra marks for robustness)
-   * **Flip:** Horizontal (ONLY IF the sign looks the same flipped. Skip this if you have directional signs like "Turn Left").
-   * **Crop:** 0% Minimum Zoom, 10% Maximum Zoom.
-   * **Rotation:** Between -15° and +15°.
-   * **Brightness:** Between -15% and +15%.
-   * **Blur:** Up to 1.25px.
-   * **Noise:** Up to 1%.
-4. Set the dataset output size to **3x** (This will generate ~2,400 images).
-5. Click **Generate** and export it to a Colab `data.yaml` link just like before.
+3. **Image-Level Augmentation:** (Simulates outdoor weather/lighting changes)
+   * **Brightness:** Between -25% and +25%.
+   * **Blur:** Up to 1.5px (Simulates motion blur).
+   * **Noise:** Up to 2% (Simulates cheap camera sensors).
+4. **Bounding Box-Level Augmentation (CRITICAL FOR NOISE REDUCTION):** 
+   * *Why?* This forces YOLO to learn the shape of the sign, not the trees/buildings behind it.
+   * **Crop (Bounding Box Only):** 0% Minimum Zoom, 15% Maximum Zoom.
+   * **Rotation (Bounding Box Only):** Between -15° and +15°.
+   * **Mosaic / Cutmix:** (If available in your Roboflow plan, turn this ON. It pastes signs into random backgrounds so YOLO stops guessing based on the background).
+5. Set the dataset output size to **3x** (This will generate ~2,400 highly robust images).
+6. Click **Generate** and export it to a Colab `data.yaml` link just like before.
 
 ## Why this guarantees success:
 - Your model will only know about the exact 40 signs the lecturer cares about. 
