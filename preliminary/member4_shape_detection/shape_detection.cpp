@@ -82,9 +82,13 @@ cv::Mat getColorMask(const cv::Mat& src, const std::string& colorType) {
 // robust than using perimeter-based circularity alone.
 // ============================================
 std::string classifyShape(const std::vector<cv::Point>& contour) {
-    // 1. Fix Serrated Edges: Apply Convex Hull to smooth the contour!
+    // 1. Fix Serrated Edges: Smooth contour before Convex Hull
+    std::vector<cv::Point> smoothContour;
+    double periOriginal = cv::arcLength(contour, true);
+    cv::approxPolyDP(contour, smoothContour, 0.005 * periOriginal, true);
+
     std::vector<cv::Point> hull;
-    cv::convexHull(contour, hull);
+    cv::convexHull(smoothContour, hull);
 
     double area = cv::contourArea(hull);
     double peri = cv::arcLength(hull, true);
@@ -113,7 +117,7 @@ std::string classifyShape(const std::vector<cv::Point>& contour) {
     else if (verticesLoose == 4) {
         return "Rectangle";
     }
-    else if (circularity > 0.75) {
+    else if (circularity > 0.60) {
         // High circularity = round shape
         // But check strict vertices to distinguish octagon from circle
         if (verticesStrict >= 7 && verticesStrict <= 9) {
@@ -194,7 +198,7 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
             float aspectRatio = (float)box.width / (float)box.height;
             
             // Only consider contours that are roughly square-shaped (real signs)
-            if (aspectRatio > 0.6 && aspectRatio < 1.4) {
+            if (aspectRatio > 0.5 && aspectRatio < 1.5) {
                 
                 // Solidity check: (Contour Area / Convex Hull Area). 
                 // A real sign is solid, not a bunch of disconnected spider legs.
@@ -204,7 +208,7 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
                 double solidity = (hullArea > 0) ? (a / hullArea) : 0;
                 
                 // If it's highly solid and larger than our current max
-                if (solidity > 0.7 && a > maxArea) {
+                if (solidity > 0.5 && a > maxArea) {
                     maxArea = a;
                     largestIdx = i;
                 }
@@ -321,7 +325,7 @@ void runCameraDemo() {
                     float aspectRatio = (float)box.width / (float)box.height;
                     
                     // Most signs (circles, triangles, octagons) have an aspect ratio between 0.6 and 1.4
-                    if (aspectRatio > 0.6 && aspectRatio < 1.4) {
+                    if (aspectRatio > 0.5 && aspectRatio < 1.5) {
                         
                         // Solidity check: (Contour Area / Convex Hull Area). 
                         // A real sign is solid, not a bunch of disconnected spider legs.
@@ -331,7 +335,7 @@ void runCameraDemo() {
                         double solidity = (hullArea > 0) ? (cv::contourArea(contour) / hullArea) : 0;
                         
                         // Only proceed if it is highly solid
-                        if (solidity > 0.7) {
+                        if (solidity > 0.5) {
                             std::string shape = classifyShape(contour);
                         
                         // 3. Ignore generic polygons (usually background noise)
