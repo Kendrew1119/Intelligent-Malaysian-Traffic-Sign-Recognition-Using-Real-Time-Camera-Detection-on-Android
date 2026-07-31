@@ -278,6 +278,7 @@ void runCameraDemo() {
         cv::resize(frame, frame, cv::Size(640, 480));
         cv::Mat display = frame.clone();
         cv::Mat allMasks = cv::Mat::zeros(frame.size(), CV_8UC1);
+        cv::Mat allContours = cv::Mat::zeros(frame.size(), CV_8UC3);
 
         for (const auto& color : colors) {
             cv::Mat mask = getColorMask(frame, color);
@@ -285,6 +286,9 @@ void runCameraDemo() {
 
             std::vector<std::vector<cv::Point>> contours;
             cv::findContours(mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+            
+            // Draw all detected contours for the split-screen view
+            cv::drawContours(allContours, contours, -1, cv::Scalar(255, 0, 255), 2);
 
             for (const auto& contour : contours) {
                 // Minimum area to avoid small background noise
@@ -316,11 +320,32 @@ void runCameraDemo() {
         }
 
         if (showMask) {
+            cv::Mat p1, p2, p3, p4;
+            
+            // Resize each panel to half size so the 2x2 grid fits perfectly on screen (320x240 each)
+            cv::Size halfSize(frame.cols / 2, frame.rows / 2);
+            cv::resize(frame, p1, halfSize);
+            
             cv::Mat colorMasks;
             cv::cvtColor(allMasks, colorMasks, cv::COLOR_GRAY2BGR);
-            cv::Mat combined;
-            cv::hconcat(display, colorMasks, combined);
-            cv::imshow("Live Shape & Color Detection", combined);
+            cv::resize(colorMasks, p2, halfSize);
+            
+            cv::resize(allContours, p3, halfSize);
+            cv::resize(display, p4, halfSize);
+            
+            // Add titles to panels
+            cv::putText(p1, "1. Original", cv::Point(10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255,255,255), 2);
+            cv::putText(p2, "2. HSV Mask", cv::Point(10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255,255,255), 2);
+            cv::putText(p3, "3. Contours", cv::Point(10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255,255,255), 2);
+            cv::putText(p4, "4. Final Output", cv::Point(10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0,255,0), 2);
+
+            // Construct the 2x2 grid
+            cv::Mat topRow, bottomRow, grid;
+            cv::hconcat(std::vector<cv::Mat>{p1, p2}, topRow);
+            cv::hconcat(std::vector<cv::Mat>{p3, p4}, bottomRow);
+            cv::vconcat(topRow, bottomRow, grid);
+            
+            cv::imshow("Live Shape & Color Detection", grid);
         }
         else {
             cv::imshow("Live Shape & Color Detection", display);
