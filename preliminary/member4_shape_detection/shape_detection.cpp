@@ -82,23 +82,27 @@ cv::Mat getColorMask(const cv::Mat& src, const std::string& colorType) {
 // robust than using perimeter-based circularity alone.
 // ============================================
 std::string classifyShape(const std::vector<cv::Point>& contour) {
-    double area = cv::contourArea(contour);
-    double peri = cv::arcLength(contour, true);
+    // 1. Fix Serrated Edges: Apply Convex Hull to smooth the contour!
+    std::vector<cv::Point> hull;
+    cv::convexHull(contour, hull);
+
+    double area = cv::contourArea(hull);
+    double peri = cv::arcLength(hull, true);
 
     // Use two levels of polygon approximation
     // Loose: for triangle/rectangle detection (fewer vertices)
     std::vector<cv::Point> approxLoose, approxStrict;
-    cv::approxPolyDP(contour, approxLoose, 0.04 * peri, true);
+    cv::approxPolyDP(hull, approxLoose, 0.04 * peri, true);
     // Strict: for octagon detection (more vertices preserved)
-    cv::approxPolyDP(contour, approxStrict, 0.01 * peri, true);
+    cv::approxPolyDP(hull, approxStrict, 0.01 * peri, true);
 
     int verticesLoose = (int)approxLoose.size();
     int verticesStrict = (int)approxStrict.size();
 
-    // Compute circularity using minEnclosingCircle
+    // Compute circularity using minEnclosingCircle on the smooth hull
     cv::Point2f center;
     float radius;
-    cv::minEnclosingCircle(contour, center, radius);
+    cv::minEnclosingCircle(hull, center, radius);
     double enclosingArea = CV_PI * radius * radius;
     double circularity = (enclosingArea > 0) ? (area / enclosingArea) : 0;
 
@@ -184,9 +188,26 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
         double maxArea = 0;
         for (int i = 0; i < (int)contours.size(); i++) {
             double a = cv::contourArea(contours[i]);
-            if (a > maxArea) {
-                maxArea = a;
-                largestIdx = i;
+            
+            // 2. Fix Background Noise: Geometric Filters
+            cv::Rect box = cv::boundingRect(contours[i]);
+            float aspectRatio = (float)box.width / (float)box.height;
+            
+            // Only consider contours that are roughly square-shaped (real signs)
+            if (aspectRatio > 0.6 && aspectRatio < 1.4) {
+                
+                // Solidity check: (Contour Area / Convex Hull Area). 
+                // A real sign is solid, not a bunch of disconnected spider legs.
+                std::vector<cv::Point> hull;
+                cv::convexHull(contours[i], hull);
+                double hullArea = cv::contourArea(hull);
+                double solidity = (hullArea > 0) ? (a / hullArea) : 0;
+                
+                // If it's highly solid and larger than our current max
+                if (solidity > 0.7 && a > maxArea) {
+                    maxArea = a;
+                    largestIdx = i;
+                }
             }
         }
 
@@ -302,7 +323,16 @@ void runCameraDemo() {
                     // Most signs (circles, triangles, octagons) have an aspect ratio between 0.6 and 1.4
                     if (aspectRatio > 0.6 && aspectRatio < 1.4) {
                         
-                        std::string shape = classifyShape(contour);
+                        // Solidity check: (Contour Area / Convex Hull Area). 
+                        // A real sign is solid, not a bunch of disconnected spider legs.
+                        std::vector<cv::Point> hull;
+                        cv::convexHull(contour, hull);
+                        double hullArea = cv::contourArea(hull);
+                        double solidity = (hullArea > 0) ? (cv::contourArea(contour) / hullArea) : 0;
+                        
+                        // Only proceed if it is highly solid
+                        if (solidity > 0.7) {
+                            std::string shape = classifyShape(contour);
                         
                         // 3. Ignore generic polygons (usually background noise)
                         if (shape != "Polygon") { 
@@ -325,7 +355,7 @@ void runCameraDemo() {
                                 cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2);
                         }
                     }
-                }
+                } // End of solidity check
             }
         }
 
