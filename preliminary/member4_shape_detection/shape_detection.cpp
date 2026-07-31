@@ -291,29 +291,38 @@ void runCameraDemo() {
             cv::drawContours(allContours, contours, -1, cv::Scalar(255, 0, 255), 2);
 
             for (const auto& contour : contours) {
-                // Minimum area to avoid small background noise
-                if (cv::contourArea(contour) > 1500) {
-                    std::string shape = classifyShape(contour);
-                    if (shape != "Polygon") { // Ignore random irregular shapes
-                        cv::Rect box = cv::boundingRect(contour);
-
-                        cv::Scalar boxColor;
-                        std::string colorName;
-                        if (color == "Red Signs") { boxColor = cv::Scalar(0, 0, 255); colorName = "Red"; }
-                        else if (color == "Blue Signs") { boxColor = cv::Scalar(255, 0, 0); colorName = "Blue"; }
-                        else { boxColor = cv::Scalar(0, 255, 255); colorName = "Yellow"; }
-
-                        // Draw bounding box and label
-                        cv::rectangle(display, box, boxColor, 2);
-                        std::string label = colorName + " " + shape;
+                // 1. Increase minimum area to avoid small background noise
+                if (cv::contourArea(contour) > 3000) {
+                    
+                    // 2. Add Aspect Ratio check (real signs are mostly square-ish proportions)
+                    cv::Rect box = cv::boundingRect(contour);
+                    float aspectRatio = (float)box.width / (float)box.height;
+                    
+                    // Most signs (circles, triangles, octagons) have an aspect ratio between 0.6 and 1.4
+                    if (aspectRatio > 0.6 && aspectRatio < 1.4) {
                         
-                        // Add background box for text readability
-                        int baseline = 0;
-                        cv::Size textSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.6, 2, &baseline);
-                        cv::rectangle(display, cv::Point(box.x, box.y - textSize.height - 10), 
-                                      cv::Point(box.x + textSize.width, box.y), boxColor, cv::FILLED);
-                        cv::putText(display, label, cv::Point(box.x, box.y - 5),
-                            cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2);
+                        std::string shape = classifyShape(contour);
+                        
+                        // 3. Ignore generic polygons (usually background noise)
+                        if (shape != "Polygon") { 
+                            cv::Scalar boxColor;
+                            std::string colorName;
+                            if (color == "Red Signs") { boxColor = cv::Scalar(0, 0, 255); colorName = "Red"; }
+                            else if (color == "Blue Signs") { boxColor = cv::Scalar(255, 0, 0); colorName = "Blue"; }
+                            else { boxColor = cv::Scalar(0, 255, 255); colorName = "Yellow"; }
+
+                            // Draw bounding box and label
+                            cv::rectangle(display, box, boxColor, 2);
+                            std::string label = colorName + " " + shape;
+                            
+                            // Add background box for text readability
+                            int baseline = 0;
+                            cv::Size textSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.6, 2, &baseline);
+                            cv::rectangle(display, cv::Point(box.x, box.y - textSize.height - 10), 
+                                          cv::Point(box.x + textSize.width, box.y), boxColor, cv::FILLED);
+                            cv::putText(display, label, cv::Point(box.x, box.y - 5),
+                                cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2);
+                        }
                     }
                 }
             }
