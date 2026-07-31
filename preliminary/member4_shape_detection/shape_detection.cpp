@@ -65,9 +65,8 @@ cv::Mat getColorMask(const cv::Mat& src, const std::string& colorType) {
     }
 
     // Morphological OPEN to remove small noise spots
-    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
     cv::morphologyEx(mask, mask, cv::MORPH_OPEN, kernel);
-    
     // Morphological CLOSE to fill small holes inside the sign region
     cv::morphologyEx(mask, mask, cv::MORPH_CLOSE, kernel);
 
@@ -83,120 +82,55 @@ cv::Mat getColorMask(const cv::Mat& src, const std::string& colorType) {
 // robust than using perimeter-based circularity alone.
 // ============================================
 std::string classifyShape(const std::vector<cv::Point>& contour) {
-
-    if (contour.size() < 5)
-        return "Unknown";
-
-    // ------------------------------------------
-    // 1. Smooth only small serrated noise
-    // ------------------------------------------
-    double periOriginal = cv::arcLength(contour, true);
-
+    // 1. Smooth the contour VERY slightly to remove tiny teeth
     std::vector<cv::Point> smoothContour;
+    double periOriginal = cv::arcLength(contour, true);
+    cv::approxPolyDP(contour, smoothContour, 0.005 * periOriginal, true);
 
-    cv::approxPolyDP(
-        contour,
-        smoothContour,
-        0.004 * periOriginal,
-        true
-    );
-
-    if (smoothContour.size() < 5)
-        return "Unknown";
-
-    // ------------------------------------------
-    // 2. Convex hull
-    // ------------------------------------------
     std::vector<cv::Point> hull;
     cv::convexHull(smoothContour, hull);
 
     double area = cv::contourArea(hull);
     double peri = cv::arcLength(hull, true);
 
-    if (area <= 0 || peri <= 0)
-        return "Unknown";
+    // Use two levels of polygon approximation
+    // Loose: for triangle/rectangle detection (fewer vertices)
+    std::vector<cv::Point> approxLoose, approxStrict;
+    cv::approxPolyDP(hull, approxLoose, 0.04 * peri, true);
+    // Strict: for octagon detection (more vertices preserved)
+    cv::approxPolyDP(hull, approxStrict, 0.01 * peri, true);
 
-    // ------------------------------------------
-    // 3. Bounding box
-    // ------------------------------------------
-    cv::Rect box = cv::boundingRect(hull);
+    int verticesLoose = (int)approxLoose.size();
+    int verticesStrict = (int)approxStrict.size();
 
-    double aspect = (double)box.width / (double)box.height;
-
-    double aspectScore = std::min(aspect, 1.0 / aspect);
-
-    // ------------------------------------------
-    // 4. Circularity
-    // ------------------------------------------
-    double circularity = (4.0 * CV_PI * area) / (peri * peri);
-
-    // ------------------------------------------
-    // 5. Minimum enclosing circle
-    // ------------------------------------------
+    // Compute circularity using minEnclosingCircle on the smooth hull
     cv::Point2f center;
     float radius;
     cv::minEnclosingCircle(hull, center, radius);
-
     double enclosingArea = CV_PI * radius * radius;
+    double circularity = (enclosingArea > 0) ? (area / enclosingArea) : 0;
 
-    double circleFill = (enclosingArea > 0) ? area / enclosingArea : 0;
-
-    // ------------------------------------------
-    // 6. Polygon approximation
-    // ------------------------------------------
-    std::vector<cv::Point> approx;
-
-    cv::approxPolyDP(
-        hull,
-        approx,
-        0.035 * peri,
-        true
-    );
-
-    int vertices = (int)approx.size();
-
-    // ------------------------------------------
-    // 7. CIRCLE FIRST
-    // ------------------------------------------
-    if (
-        circularity > 0.72 &&
-        circleFill > 0.70 &&
-        aspectScore > 0.82
-    ) {
-        return "Circle";
-    }
-
-    // ------------------------------------------
-    // 8. Triangle
-    // ------------------------------------------
-    if (vertices == 3) {
+    // Classification logic (matching the lecturer's minimal fix)
+    if (verticesLoose == 3) {
         return "Triangle";
     }
-
-    // ------------------------------------------
-    // 9. Rectangle
-    // ------------------------------------------
-    if (
-        vertices == 4 &&
-        aspectScore > 0.70
-    ) {
+    else if (verticesLoose == 4) {
         return "Rectangle";
     }
-
-    // ------------------------------------------
-    // 10. Octagon
-    // ------------------------------------------
-    if (
-        vertices >= 7 &&
-        vertices <= 9 &&
-        circularity > 0.82 &&
-        circleFill > 0.75 &&
-        aspectScore > 0.88
+    else if (circularity > 0.78) {
+        // Prioritize Circle over Octagon!
+        return "Circle";
+    }
+    else if (
+        verticesStrict >= 7 &&
+        verticesStrict <= 9 &&
+        circularity > 0.70
     ) {
         return "Octagon";
     }
-
-    return "Unknown";
+    else {
+        return "Polygon";
+    }
 }
 
 // ============================================
@@ -212,8 +146,9 @@ std::string classifyShape(const std::vector<cv::Point>& contour) {
 std::string processImage(const cv::Mat& src, const std::string& filename,
     const std::string& colorType, const std::string& outPath, bool showSteps) {
 
-    // Use clone to maintain original geometry, then resize panels later
-    cv::Mat img = src.clone();
+    // Resize to fixed 300x300 for consistent grid display
+    cv::Mat img;
+    cv::resize(src, img, cv::Size(300, 300));
     cv::Mat black = cv::Mat::zeros(img.size(), img.type());
 
     // ------------------------------------------
@@ -264,7 +199,7 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
             float aspectRatio = (float)box.width / (float)box.height;
             
             // Only consider contours that are roughly square-shaped (real signs)
-            if (aspectRatio > 0.65 && aspectRatio < 1.35) {
+            if (aspectRatio > 0.6 && aspectRatio < 1.4) {
                 
                 // Solidity check: (Contour Area / Convex Hull Area). 
                 // A real sign is solid, not a bunch of disconnected spider legs.
@@ -273,8 +208,8 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
                 double hullArea = cv::contourArea(hull);
                 double solidity = (hullArea > 0) ? (a / hullArea) : 0;
                 
-                // If it's highly solid and larger than our current max
-                if (solidity > 0.80 && a > maxArea) {
+                // If it's highly solid, reasonably large, and larger than our current max
+                if (solidity > 0.7 && a > 500 && a > maxArea) {
                     maxArea = a;
                     largestIdx = i;
                 }
@@ -295,17 +230,6 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
             cv::bitwise_and(img, img, p6, maskGray);
         }
     }
-
-    // ------------------------------------------
-    // Resize panels to 300x300 for the final grid display
-    // ------------------------------------------
-    cv::Size displaySize(300, 300);
-    cv::resize(p1, p1, displaySize);
-    cv::resize(p2, p2, displaySize);
-    cv::resize(p3, p3, displaySize);
-    cv::resize(p4, p4, displaySize);
-    cv::resize(p5, p5, displaySize);
-    cv::resize(p6, p6, displaySize);
 
     // ------------------------------------------
     // Step 6: Add labels to each panel
@@ -401,8 +325,8 @@ void runCameraDemo() {
                     cv::Rect box = cv::boundingRect(contour);
                     float aspectRatio = (float)box.width / (float)box.height;
                     
-                    // Most signs (circles, triangles, octagons) have an aspect ratio near 1.0
-                    if (aspectRatio > 0.65 && aspectRatio < 1.35) {
+                    // Most signs (circles, triangles, octagons) have an aspect ratio between 0.6 and 1.4
+                    if (aspectRatio > 0.6 && aspectRatio < 1.4) {
                         
                         // Solidity check: (Contour Area / Convex Hull Area). 
                         // A real sign is solid, not a bunch of disconnected spider legs.
@@ -412,11 +336,11 @@ void runCameraDemo() {
                         double solidity = (hullArea > 0) ? (cv::contourArea(contour) / hullArea) : 0;
                         
                         // Only proceed if it is highly solid
-                        if (solidity > 0.80) {
+                        if (solidity > 0.7) {
                             std::string shape = classifyShape(contour);
                         
-                            // 3. Ignore generic/garbage shapes
-                            if (shape != "Unknown") { 
+                        // 3. Ignore generic polygons (usually background noise)
+                        if (shape != "Polygon") { 
                             cv::Scalar boxColor;
                             std::string colorName;
                             if (color == "Red Signs") { boxColor = cv::Scalar(0, 0, 255); colorName = "Red"; }
@@ -515,7 +439,7 @@ int main(int argc, char** argv) {
 
     int totalImages = 0;
     int totalDetected = 0;   // Images where at least one shape was detected
-    int totalCircle = 0, totalTriangle = 0, totalRect = 0, totalOctagon = 0, totalUnknown = 0;
+    int totalCircle = 0, totalTriangle = 0, totalRect = 0, totalOctagon = 0, totalPolygon = 0;
 
     for (const auto& subfolder : subfolders) {
         std::string folderPath = baseDir + "/" + subfolder;
@@ -565,7 +489,7 @@ int main(int argc, char** argv) {
                 else if (shape == "Triangle") totalTriangle++;
                 else if (shape == "Rectangle") totalRect++;
                 else if (shape == "Octagon") totalOctagon++;
-                else if (shape == "Unknown") totalUnknown++;
+                else if (shape == "Polygon") totalPolygon++;
             }
         }
 
@@ -582,14 +506,14 @@ int main(int argc, char** argv) {
     std::cout << "========================================" << std::endl;
     std::cout << " Total images processed: " << totalImages << std::endl;
     std::cout << " Total shapes detected:  " << totalDetected << std::endl;
-    std::cout << " Detection Rate:         " << std::fixed << std::setprecision(1) << overallAcc << "%" << std::endl;
+    std::cout << " Overall accuracy:       " << std::fixed << std::setprecision(1) << overallAcc << "%" << std::endl;
     std::cout << "----------------------------------------" << std::endl;
     std::cout << " Shape breakdown:" << std::endl;
     std::cout << "   Circle:    " << totalCircle << std::endl;
     std::cout << "   Triangle:  " << totalTriangle << std::endl;
     std::cout << "   Rectangle: " << totalRect << std::endl;
     std::cout << "   Octagon:   " << totalOctagon << std::endl;
-    std::cout << "   Unknown:   " << totalUnknown << std::endl;
+    std::cout << "   Polygon:   " << totalPolygon << std::endl;
     std::cout << "========================================" << std::endl;
     std::cout << " Grid images saved to: " << outputDir << "/" << std::endl;
     std::cout << "========================================" << std::endl;
