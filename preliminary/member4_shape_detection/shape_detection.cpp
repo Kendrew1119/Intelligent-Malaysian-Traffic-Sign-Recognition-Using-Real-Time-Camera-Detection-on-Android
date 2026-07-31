@@ -82,13 +82,9 @@ cv::Mat getColorMask(const cv::Mat& src, const std::string& colorType) {
 // robust than using perimeter-based circularity alone.
 // ============================================
 std::string classifyShape(const std::vector<cv::Point>& contour) {
-    // 1. Smooth the contour VERY slightly to remove tiny teeth
-    std::vector<cv::Point> smoothContour;
-    double periOriginal = cv::arcLength(contour, true);
-    cv::approxPolyDP(contour, smoothContour, 0.005 * periOriginal, true);
-
+    // 1. Fix Serrated Edges: Apply Convex Hull to smooth the contour!
     std::vector<cv::Point> hull;
-    cv::convexHull(smoothContour, hull);
+    cv::convexHull(contour, hull);
 
     double area = cv::contourArea(hull);
     double peri = cv::arcLength(hull, true);
@@ -110,23 +106,22 @@ std::string classifyShape(const std::vector<cv::Point>& contour) {
     double enclosingArea = CV_PI * radius * radius;
     double circularity = (enclosingArea > 0) ? (area / enclosingArea) : 0;
 
-    // Classification logic (matching the lecturer's minimal fix)
+    // Classification logic (matching the reference sample code)
     if (verticesLoose == 3) {
         return "Triangle";
     }
     else if (verticesLoose == 4) {
         return "Rectangle";
     }
-    else if (circularity > 0.78) {
-        // Prioritize Circle over Octagon!
-        return "Circle";
-    }
-    else if (
-        verticesStrict >= 7 &&
-        verticesStrict <= 9 &&
-        circularity > 0.70
-    ) {
-        return "Octagon";
+    else if (circularity > 0.75) {
+        // High circularity = round shape
+        // But check strict vertices to distinguish octagon from circle
+        if (verticesStrict >= 7 && verticesStrict <= 9) {
+            return "Octagon";
+        }
+        else {
+            return "Circle";
+        }
     }
     else {
         return "Polygon";
@@ -208,8 +203,8 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
                 double hullArea = cv::contourArea(hull);
                 double solidity = (hullArea > 0) ? (a / hullArea) : 0;
                 
-                // If it's highly solid, reasonably large, and larger than our current max
-                if (solidity > 0.7 && a > 500 && a > maxArea) {
+                // If it's highly solid and larger than our current max
+                if (solidity > 0.7 && a > maxArea) {
                     maxArea = a;
                     largestIdx = i;
                 }
