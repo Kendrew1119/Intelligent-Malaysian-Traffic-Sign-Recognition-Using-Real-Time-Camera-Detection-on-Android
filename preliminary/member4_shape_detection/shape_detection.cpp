@@ -353,11 +353,12 @@ void runCameraDemo() {
                                           cv::Point(box.x + textSize.width, box.y), boxColor, cv::FILLED);
                             cv::putText(display, label, cv::Point(box.x, box.y - 5),
                                 cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2);
-                        }
-                    }
-                } // End of solidity check
-            }
-        }
+                        } // End of shape != Polygon
+                    } // End of solidity > 0.7
+                } // End of aspectRatio
+            } // End of contourArea
+        } // End of contour loop
+    } // End of color loop
 
         if (showMask) {
             cv::Mat p1, p2, p3, p4;
