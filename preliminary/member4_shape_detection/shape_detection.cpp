@@ -96,7 +96,7 @@ std::string classifyShape(const std::vector<cv::Point>& contour) {
     // Use two levels of polygon approximation
     // Loose: for triangle/rectangle detection (fewer vertices)
     std::vector<cv::Point> approxLoose, approxStrict;
-    cv::approxPolyDP(hull, approxLoose, 0.04 * peri, true);
+    cv::approxPolyDP(hull, approxLoose, 0.035 * peri, true);
     // Strict: for octagon detection (more vertices preserved)
     cv::approxPolyDP(hull, approxStrict, 0.01 * peri, true);
 
@@ -111,10 +111,29 @@ std::string classifyShape(const std::vector<cv::Point>& contour) {
     double circularity = (enclosingArea > 0) ? (area / enclosingArea) : 0;
 
     // Classification logic (matching the reference sample code)
+    // Triangle: allow slightly noisy triangles to have 4 loose vertices
     if (verticesLoose == 3) {
         return "Triangle";
     }
     else if (verticesLoose == 4) {
+
+        // Check whether the 4-sided contour is actually triangle-like
+        double triangleArea = cv::contourArea(hull);
+
+        cv::Rect box = cv::boundingRect(hull);
+
+        double boxArea = (double)box.width * box.height;
+
+        double extent = (boxArea > 0)
+            ? triangleArea / boxArea
+            : 0;
+
+        // A triangle usually occupies less of its bounding box
+        // than a rectangle.
+        if (extent < 0.70) {
+            return "Triangle";
+        }
+
         return "Rectangle";
     }
     else if (circularity > 0.60) {
@@ -207,8 +226,11 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
                 double hullArea = cv::contourArea(hull);
                 double solidity = (hullArea > 0) ? (a / hullArea) : 0;
                 
+                // Yellow signs bleed into the background more, so they need a lower solidity threshold
+                double requiredSolidity = (colorType == "Yellow Signs") ? 0.40 : 0.50;
+                
                 // If it's highly solid and larger than our current max
-                if (solidity > 0.5 && a > maxArea) {
+                if (solidity > requiredSolidity && a > maxArea) {
                     maxArea = a;
                     largestIdx = i;
                 }
@@ -334,8 +356,11 @@ void runCameraDemo() {
                         double hullArea = cv::contourArea(hull);
                         double solidity = (hullArea > 0) ? (cv::contourArea(contour) / hullArea) : 0;
                         
+                        // Yellow signs bleed into the background more, so they need a lower solidity threshold
+                        double requiredSolidity = (color == "Yellow Signs") ? 0.40 : 0.50;
+                        
                         // Only proceed if it is highly solid
-                        if (solidity > 0.5) {
+                        if (solidity > requiredSolidity) {
                             std::string shape = classifyShape(contour);
                         
                         // 3. Ignore generic polygons (usually background noise)
