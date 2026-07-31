@@ -155,15 +155,36 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
     cv::Canny(blurred, edges, 50, 150);
 
     // ------------------------------------------
-    // Step 2: Create Color Mask (THE REAL LOGIC)
+    // Step 2: Create Color Mask & True Hybrid Intersection
     // ------------------------------------------
-    cv::Mat colorMask = getColorMask(img, colorType);
+    cv::Mat colorMaskRaw = getColorMask(img, colorType);
+    
+    // Dilate Canny edges slightly to ensure they overlap with the color boundary
+    cv::Mat dilatedEdges;
+    cv::dilate(edges, dilatedEdges, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
+    
+    // INTERSECTION: Only keep color pixels that overlap with a Canny edge!
+    cv::Mat colorMask;
+    cv::bitwise_and(colorMaskRaw, dilatedEdges, colorMask);
 
     // ------------------------------------------
-    // Step 3: Find contours on Color Mask
+    // Step 3: Find contours and fill to create solid shapes
     // ------------------------------------------
+    std::vector<std::vector<cv::Point>> rawContours;
+    cv::findContours(colorMask, rawContours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    
+    // Because the intersection creates hollow "rings", we fill them to make solid blobs
+    cv::Mat filledMask = cv::Mat::zeros(colorMask.size(), CV_8UC1);
+    for (size_t i = 0; i < rawContours.size(); i++) {
+        std::vector<cv::Point> hull;
+        cv::convexHull(rawContours[i], hull); // Smooth out the ring before filling
+        std::vector<std::vector<cv::Point>> hullList = { hull };
+        cv::drawContours(filledMask, hullList, 0, cv::Scalar(255), cv::FILLED);
+    }
+    
+    // Find final contours on the perfectly sharp, filled mask
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(colorMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(filledMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
     // Prepare 6 panels
     cv::Mat p1 = img.clone();                    // Original
@@ -171,9 +192,8 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
     cv::cvtColor(gray, p2, cv::COLOR_GRAY2BGR);
     cv::Mat p3;                                  // Canny Edges
     cv::cvtColor(edges, p3, cv::COLOR_GRAY2BGR);
-    
-    cv::Mat p4;                                  // The Color Mask used
-    cv::cvtColor(colorMask, p4, cv::COLOR_GRAY2BGR);
+    cv::Mat p4;                                  // The Intersection Mask used
+    cv::cvtColor(filledMask, p4, cv::COLOR_GRAY2BGR);
     
     cv::Mat p5 = black.clone();                  // Shape (filled green)
     cv::Mat p6 = black.clone();                  // Segmented sign
@@ -299,15 +319,41 @@ void runCameraDemo() {
         // Resize for faster processing
         cv::resize(frame, frame, cv::Size(640, 480));
         cv::Mat display = frame.clone();
+        // ------------------------------------------
+        // True Hybrid: Extract Canny Edges First
+        // ------------------------------------------
+        cv::Mat gray, blurred, edges, dilatedEdges;
+        cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
+        cv::GaussianBlur(gray, blurred, cv::Size(5, 5), 0);
+        cv::Canny(blurred, edges, 50, 150);
+        cv::dilate(edges, dilatedEdges, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
+
         cv::Mat allMasks = cv::Mat::zeros(frame.size(), CV_8UC1);
         cv::Mat allContours = cv::Mat::zeros(frame.size(), CV_8UC3);
 
         for (const auto& color : colors) {
-            cv::Mat mask = getColorMask(frame, color);
-            cv::bitwise_or(allMasks, mask, allMasks);
+            cv::Mat colorMaskRaw = getColorMask(frame, color);
+            
+            // INTERSECTION: Only keep color pixels that overlap with a Canny edge!
+            cv::Mat mask;
+            cv::bitwise_and(colorMaskRaw, dilatedEdges, mask);
+            
+            // Fill hollow rings to create solid masks
+            std::vector<std::vector<cv::Point>> rawContours;
+            cv::findContours(mask, rawContours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+            
+            cv::Mat filledMask = cv::Mat::zeros(mask.size(), CV_8UC1);
+            for (size_t i = 0; i < rawContours.size(); i++) {
+                std::vector<cv::Point> hull;
+                cv::convexHull(rawContours[i], hull);
+                std::vector<std::vector<cv::Point>> hullList = { hull };
+                cv::drawContours(filledMask, hullList, 0, cv::Scalar(255), cv::FILLED);
+            }
+            
+            cv::bitwise_or(allMasks, filledMask, allMasks);
 
             std::vector<std::vector<cv::Point>> contours;
-            cv::findContours(mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+            cv::findContours(filledMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
             
             // Draw all detected contours for the split-screen view
             cv::drawContours(allContours, contours, -1, cv::Scalar(255, 0, 255), 2);
