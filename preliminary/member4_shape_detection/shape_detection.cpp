@@ -143,63 +143,84 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
     cv::Mat black = cv::Mat::zeros(img.size(), img.type());
 
     // ------------------------------------------
-    // Step 1: Create color mask using HSV thresholds
+    // Step 1: Grayscale and Blur
     // ------------------------------------------
-    cv::Mat colorMask = getColorMask(img, colorType);
+    cv::Mat gray, blurred;
+    cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+    cv::GaussianBlur(gray, blurred, cv::Size(5, 5), 0);
 
     // ------------------------------------------
-    // Step 2: Find contours on the color mask
+    // Step 2: Canny Edge Detection
+    // ------------------------------------------
+    cv::Mat edges;
+    cv::Canny(blurred, edges, 50, 150);
+
+    // Morphological close to connect broken edges
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+    cv::morphologyEx(edges, edges, cv::MORPH_CLOSE, kernel);
+
+    // ------------------------------------------
+    // Step 3: Find contours on Canny Edges
     // ------------------------------------------
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(colorMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(edges, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
     // Prepare 6 panels
     cv::Mat p1 = img.clone();                    // Original
-    cv::Mat p2 = black.clone();                  // All contours
-    cv::Mat p3 = black.clone();                  // Largest contour
-    cv::Mat p4 = black.clone();                  // Mask
+    cv::Mat p2;                                  // Grayscale
+    cv::cvtColor(gray, p2, cv::COLOR_GRAY2BGR);
+    cv::Mat p3;                                  // Canny Edges
+    cv::cvtColor(edges, p3, cv::COLOR_GRAY2BGR);
+    cv::Mat p4 = black.clone();                  // All contours
     cv::Mat p5 = black.clone();                  // Shape (filled green)
     cv::Mat p6 = black.clone();                  // Segmented sign
 
     std::string shapeName = "No Shape";
 
-    // Draw all contours in magenta on p2
-    cv::drawContours(p2, contours, -1, cv::Scalar(255, 0, 255), 2);
+    // Draw all contours in magenta on p4
+    cv::drawContours(p4, contours, -1, cv::Scalar(255, 0, 255), 2);
 
     // ------------------------------------------
-    // Step 3: Find the largest contour (assumed to be the sign)
+    // Step 4: Find valid shape contour & verify color
     // ------------------------------------------
     if (!contours.empty()) {
-        int largestIdx = 0;
+        int bestIdx = -1;
         double maxArea = 0;
+        
         for (int i = 0; i < (int)contours.size(); i++) {
             double a = cv::contourArea(contours[i]);
-            if (a > maxArea) {
-                maxArea = a;
-                largestIdx = i;
+            if (a > 500) {
+                // Check if it's a valid geometric shape
+                std::string tempShape = classifyShape(contours[i]);
+                if (tempShape != "Polygon" && a > maxArea) {
+                    
+                    // Color Verification: Does this shape contain the target color?
+                    cv::Rect box = cv::boundingRect(contours[i]);
+                    // Ensure box is within image bounds
+                    box &= cv::Rect(0, 0, img.cols, img.rows); 
+                    
+                    cv::Mat colorMaskROI = getColorMask(img, colorType)(box);
+                    int colorPixels = cv::countNonZero(colorMaskROI);
+                    
+                    // If at least 15% of the bounding box matches the target color
+                    if (colorPixels > (box.width * box.height * 0.15)) {
+                        maxArea = a;
+                        bestIdx = i;
+                        shapeName = tempShape;
+                    }
+                }
             }
         }
 
-        if (maxArea > 500) {
-            // Draw the largest contour boundary (p3)
-            cv::drawContours(p3, contours, largestIdx, cv::Scalar(255, 255, 255), 2);
-
-            // Create filled mask (p4)
-            cv::drawContours(p4, contours, largestIdx, cv::Scalar(255, 255, 255), cv::FILLED);
-
-            // ------------------------------------------
-            // Step 4: Classify the shape
-            // ------------------------------------------
-            shapeName = classifyShape(contours[largestIdx]);
-
+        if (bestIdx != -1) {
             // Draw filled green shape with label (p5)
-            cv::drawContours(p5, contours, largestIdx, cv::Scalar(0, 255, 0), cv::FILLED);
+            cv::drawContours(p5, contours, bestIdx, cv::Scalar(0, 255, 0), cv::FILLED);
 
             // ------------------------------------------
-            // Step 5: Segment the sign using the mask
+            // Step 5: Segment the sign
             // ------------------------------------------
-            cv::Mat maskGray;
-            cv::cvtColor(p4, maskGray, cv::COLOR_BGR2GRAY);
+            cv::Mat maskGray = cv::Mat::zeros(img.size(), CV_8UC1);
+            cv::drawContours(maskGray, contours, bestIdx, cv::Scalar(255), cv::FILLED);
             cv::bitwise_and(img, img, p6, maskGray);
         }
     }
@@ -214,9 +235,9 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
     };
 
     addLabel(p1, "Original");
-    addLabel(p2, "Contours");
-    addLabel(p3, "Largest Contour");
-    addLabel(p4, "Mask");
+    addLabel(p2, "Grayscale");
+    addLabel(p3, "Canny Edges");
+    addLabel(p4, "All Contours");
     addLabel(p5, shapeName);
     addLabel(p6, "Sign Segmented");
 
