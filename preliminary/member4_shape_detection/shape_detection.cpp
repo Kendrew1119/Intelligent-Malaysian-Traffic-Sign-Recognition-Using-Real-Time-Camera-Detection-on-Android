@@ -65,12 +65,11 @@ cv::Mat getColorMask(const cv::Mat& src, const std::string& colorType) {
     }
 
     // Morphological OPEN to remove small noise spots
-    cv::Mat openKernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
-    cv::morphologyEx(mask, mask, cv::MORPH_OPEN, openKernel);
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(3, 3));
+    cv::morphologyEx(mask, mask, cv::MORPH_OPEN, kernel);
     
     // Morphological CLOSE to fill small holes inside the sign region
-    cv::Mat closeKernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(7, 7));
-    cv::morphologyEx(mask, mask, cv::MORPH_CLOSE, closeKernel);
+    cv::morphologyEx(mask, mask, cv::MORPH_CLOSE, kernel);
 
     return mask;
 }
@@ -89,11 +88,21 @@ std::string classifyShape(const std::vector<cv::Point>& contour) {
         return "Unknown";
 
     // ------------------------------------------
-    // 1. Smooth contour to remove serrated noise
+    // 1. Smooth only small serrated noise
     // ------------------------------------------
-    double originalPeri = cv::arcLength(contour, true);
+    double periOriginal = cv::arcLength(contour, true);
+
     std::vector<cv::Point> smoothContour;
-    cv::approxPolyDP(contour, smoothContour, 0.008 * originalPeri, true);
+
+    cv::approxPolyDP(
+        contour,
+        smoothContour,
+        0.004 * periOriginal,
+        true
+    );
+
+    if (smoothContour.size() < 5)
+        return "Unknown";
 
     // ------------------------------------------
     // 2. Convex hull
@@ -101,20 +110,19 @@ std::string classifyShape(const std::vector<cv::Point>& contour) {
     std::vector<cv::Point> hull;
     cv::convexHull(smoothContour, hull);
 
-    if (hull.size() < 3)
-        return "Unknown";
-
-    // ------------------------------------------
-    // 3. Geometry measurements
-    // ------------------------------------------
     double area = cv::contourArea(hull);
     double peri = cv::arcLength(hull, true);
 
     if (area <= 0 || peri <= 0)
         return "Unknown";
 
+    // ------------------------------------------
+    // 3. Bounding box
+    // ------------------------------------------
     cv::Rect box = cv::boundingRect(hull);
+
     double aspect = (double)box.width / (double)box.height;
+
     double aspectScore = std::min(aspect, 1.0 / aspect);
 
     // ------------------------------------------
@@ -123,25 +131,38 @@ std::string classifyShape(const std::vector<cv::Point>& contour) {
     double circularity = (4.0 * CV_PI * area) / (peri * peri);
 
     // ------------------------------------------
-    // 5. Enclosing circle ratio
+    // 5. Minimum enclosing circle
     // ------------------------------------------
     cv::Point2f center;
     float radius;
     cv::minEnclosingCircle(hull, center, radius);
+
     double enclosingArea = CV_PI * radius * radius;
+
     double circleFill = (enclosingArea > 0) ? area / enclosingArea : 0;
 
     // ------------------------------------------
-    // 6. Polygon approximations
+    // 6. Polygon approximation
     // ------------------------------------------
     std::vector<cv::Point> approx;
-    cv::approxPolyDP(hull, approx, 0.025 * peri, true);
+
+    cv::approxPolyDP(
+        hull,
+        approx,
+        0.035 * peri,
+        true
+    );
+
     int vertices = (int)approx.size();
 
     // ------------------------------------------
-    // 7. Strong circle test
+    // 7. CIRCLE FIRST
     // ------------------------------------------
-    if (circularity > 0.80 && circleFill > 0.78 && aspectScore > 0.90) {
+    if (
+        circularity > 0.72 &&
+        circleFill > 0.70 &&
+        aspectScore > 0.82
+    ) {
         return "Circle";
     }
 
@@ -155,14 +176,23 @@ std::string classifyShape(const std::vector<cv::Point>& contour) {
     // ------------------------------------------
     // 9. Rectangle
     // ------------------------------------------
-    if (vertices == 4 && aspectScore > 0.70) {
+    if (
+        vertices == 4 &&
+        aspectScore > 0.70
+    ) {
         return "Rectangle";
     }
 
     // ------------------------------------------
     // 10. Octagon
     // ------------------------------------------
-    if (vertices >= 7 && vertices <= 9 && circularity > 0.72 && circleFill > 0.70) {
+    if (
+        vertices >= 7 &&
+        vertices <= 9 &&
+        circularity > 0.82 &&
+        circleFill > 0.75 &&
+        aspectScore > 0.88
+    ) {
         return "Octagon";
     }
 
@@ -182,9 +212,8 @@ std::string classifyShape(const std::vector<cv::Point>& contour) {
 std::string processImage(const cv::Mat& src, const std::string& filename,
     const std::string& colorType, const std::string& outPath, bool showSteps) {
 
-    // Resize to fixed 300x300 for consistent grid display
-    cv::Mat img;
-    cv::resize(src, img, cv::Size(300, 300));
+    // Use clone to maintain original geometry, then resize panels later
+    cv::Mat img = src.clone();
     cv::Mat black = cv::Mat::zeros(img.size(), img.type());
 
     // ------------------------------------------
@@ -266,6 +295,17 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
             cv::bitwise_and(img, img, p6, maskGray);
         }
     }
+
+    // ------------------------------------------
+    // Resize panels to 300x300 for the final grid display
+    // ------------------------------------------
+    cv::Size displaySize(300, 300);
+    cv::resize(p1, p1, displaySize);
+    cv::resize(p2, p2, displaySize);
+    cv::resize(p3, p3, displaySize);
+    cv::resize(p4, p4, displaySize);
+    cv::resize(p5, p5, displaySize);
+    cv::resize(p6, p6, displaySize);
 
     // ------------------------------------------
     // Step 6: Add labels to each panel
