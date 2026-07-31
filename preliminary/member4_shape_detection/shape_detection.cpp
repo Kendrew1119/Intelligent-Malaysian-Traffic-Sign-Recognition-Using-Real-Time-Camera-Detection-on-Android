@@ -247,6 +247,94 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
 }
 
 // ============================================
+// Function: runCameraDemo
+// ============================================
+// Opens the webcam and performs real-time
+// shape and color detection.
+// ============================================
+void runCameraDemo() {
+    cv::VideoCapture cap(0);
+    if (!cap.isOpened()) {
+        std::cerr << "Error: Could not open camera." << std::endl;
+        return;
+    }
+
+    std::cout << "\n========================================" << std::endl;
+    std::cout << " LIVE CAMERA MODE ENABLED" << std::endl;
+    std::cout << "========================================" << std::endl;
+    std::cout << " Press 'q' or ESC to quit." << std::endl;
+    std::cout << " Press 'm' to toggle split-screen mask view." << std::endl;
+    std::cout << "----------------------------------------" << std::endl;
+
+    bool showMask = false;
+    std::vector<std::string> colors = { "Red Signs", "Blue Signs", "Yellow Signs" };
+
+    while (true) {
+        cv::Mat frame;
+        cap >> frame;
+        if (frame.empty()) break;
+
+        // Resize for faster processing
+        cv::resize(frame, frame, cv::Size(640, 480));
+        cv::Mat display = frame.clone();
+        cv::Mat allMasks = cv::Mat::zeros(frame.size(), CV_8UC1);
+
+        for (const auto& color : colors) {
+            cv::Mat mask = getColorMask(frame, color);
+            cv::bitwise_or(allMasks, mask, allMasks);
+
+            std::vector<std::vector<cv::Point>> contours;
+            cv::findContours(mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+            for (const auto& contour : contours) {
+                // Minimum area to avoid small background noise
+                if (cv::contourArea(contour) > 1500) {
+                    std::string shape = classifyShape(contour);
+                    if (shape != "Polygon") { // Ignore random irregular shapes
+                        cv::Rect box = cv::boundingRect(contour);
+
+                        cv::Scalar boxColor;
+                        std::string colorName;
+                        if (color == "Red Signs") { boxColor = cv::Scalar(0, 0, 255); colorName = "Red"; }
+                        else if (color == "Blue Signs") { boxColor = cv::Scalar(255, 0, 0); colorName = "Blue"; }
+                        else { boxColor = cv::Scalar(0, 255, 255); colorName = "Yellow"; }
+
+                        // Draw bounding box and label
+                        cv::rectangle(display, box, boxColor, 2);
+                        std::string label = colorName + " " + shape;
+                        
+                        // Add background box for text readability
+                        int baseline = 0;
+                        cv::Size textSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.6, 2, &baseline);
+                        cv::rectangle(display, cv::Point(box.x, box.y - textSize.height - 10), 
+                                      cv::Point(box.x + textSize.width, box.y), boxColor, cv::FILLED);
+                        cv::putText(display, label, cv::Point(box.x, box.y - 5),
+                            cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2);
+                    }
+                }
+            }
+        }
+
+        if (showMask) {
+            cv::Mat colorMasks;
+            cv::cvtColor(allMasks, colorMasks, cv::COLOR_GRAY2BGR);
+            cv::Mat combined;
+            cv::hconcat(display, colorMasks, combined);
+            cv::imshow("Live Shape & Color Detection", combined);
+        }
+        else {
+            cv::imshow("Live Shape & Color Detection", display);
+        }
+
+        char key = (char)cv::waitKey(30);
+        if (key == 'q' || key == 27) break;
+        if (key == 'm') showMask = !showMask;
+    }
+    cap.release();
+    cv::destroyAllWindows();
+}
+
+// ============================================
 // Main Function
 // ============================================
 int main(int argc, char** argv) {
@@ -264,9 +352,18 @@ int main(int argc, char** argv) {
     std::vector<std::string> subfolders = { "Red Signs", "Blue Signs", "Yellow Signs" };
 
     bool showSteps = false;
-    if (argc > 1 && std::string(argv[1]) == "--show") {
-        showSteps = true;
-        std::cout << "Mode: Step-by-step visualization enabled" << std::endl;
+    
+    // Check for arguments
+    if (argc > 1) {
+        std::string arg = argv[1];
+        if (arg == "--camera") {
+            runCameraDemo();
+            return 0; // Exit after camera mode
+        }
+        if (arg == "--show") {
+            showSteps = true;
+            std::cout << "Mode: Step-by-step visualization enabled" << std::endl;
+        }
     }
 
     int totalImages = 0;
