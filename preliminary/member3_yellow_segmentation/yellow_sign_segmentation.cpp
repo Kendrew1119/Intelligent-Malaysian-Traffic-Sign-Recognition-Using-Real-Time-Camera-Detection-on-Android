@@ -1,207 +1,233 @@
 // ============================================
-// [Member 3] yellow_sign_segmentation.cpp
+// [Member 3] Yellow Sign Segmentation
+// Shape-independent edge-assisted version
 // ============================================
-// Module: Yellow Sign Segmentation Using Color Information
-// Owner: Member 3
-// Due: Week 6-7 (Preliminary Work, Chapter 4)
-//
-// Purpose:
-//   - Segment YELLOW traffic signs from the 84 test images
-//   - Uses OpenCV C++ with HSV color thresholding
-//   - Implements the 6-panel grid layout ("follow the partition") 
-//     matching the format of Member 4's shape detection
-//
-// Approach:
-//   1. Convert image to HSV color space
-//   2. Apply yellow-specific mask (H=[12, 38], S=[80, 255], V=[50, 255])
-//   3. Morphological OPEN + CLOSE to clean mask
-//   4. Find external contours on the clean mask
-//   5. Select the largest contour as the sign boundary
-//   6. Classify shape using minEnclosingCircle circularity + vertex count
-//   7. Display 6-panel grid and save output
-//
-// Test Images:
-//   Read from: ../../Color Inputs/Yellow Signs/
-//
-// Build (Windows, Visual Studio):
-//   cl /EHsc yellow_sign_segmentation.cpp /I "C:\opencv\include" /link /LIBPATH:"C:\opencv\lib" opencv_world4xx.lib
+// Method:
+// 1. HSV mask locates likely yellow sign pixels.
+// 2. Canny edges locate the closed OUTER sign boundary.
+// 3. The best closed edge contour is selected by overlap with the yellow mask.
+// 4. The selected outer boundary is filled to segment the whole sign.
+// This is not shape classification: it supports any closed sign shape.
 // ============================================
 
 #include <opencv2/opencv.hpp>
-#include <iostream>
-#include <vector>
-#include <string>
+#include <algorithm>
+#include <cctype>
 #include <filesystem>
-#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
 
-// ============================================
-// Function: getYellowMask
-// ============================================
-// Creates a binary mask that isolates yellow pixels
-// using HSV thresholding. Applies morphological
-// OPEN and CLOSE to filter noise and fill gaps.
-// ============================================
-cv::Mat getYellowMask(const cv::Mat& src) {
-    cv::Mat hsv, mask;
+// Produces a raw HSV mask for display and a gently cleaned mask for contour use.
+void getYellowMasks(const cv::Mat& src, cv::Mat& rawMask, cv::Mat& cleanMask) {
+    cv::Mat hsv;
     cv::cvtColor(src, hsv, cv::COLOR_BGR2HSV);
 
-    // Yellow HSV threshold:
-    // H: [12, 38] -> covers amber/yellow range
-    // S: [80, 255] -> filters out desaturated backgrounds
-    // V: [50, 255] -> filters out shadows and low-light regions
-    cv::inRange(hsv, cv::Scalar(12, 80, 50), cv::Scalar(38, 255, 255), mask);
+    // Original HSV range used by the baseline program.
+    cv::inRange(hsv, cv::Scalar(12, 80, 50),
+        cv::Scalar(38, 255, 255), rawMask);
 
-    // Morphological OPEN (3x3 rect kernel) to remove small noise dots
-    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-    cv::morphologyEx(mask, mask, cv::MORPH_OPEN, kernel);
-    
-    // Morphological CLOSE (3x3 rect kernel) to fill hollow parts of the sign
-    cv::morphologyEx(mask, mask, cv::MORPH_CLOSE, kernel);
-
-    return mask;
+    cleanMask = rawMask.clone();
+    cv::Mat kernel = cv::getStructuringElement(
+        cv::MORPH_ELLIPSE, cv::Size(3, 3));
+    cv::morphologyEx(cleanMask, cleanMask, cv::MORPH_OPEN, kernel);
+    cv::morphologyEx(cleanMask, cleanMask, cv::MORPH_CLOSE, kernel);
 }
 
-// ============================================
-// Function: classifyShape
-// ============================================
-// Classifies shape using circularity and polygon
-// approximation. Leverages loose (4% perimeter) and
-// strict (1% perimeter) epsilon parameters.
-// ============================================
-std::string classifyShape(const std::vector<cv::Point>& contour) {
-    double area = cv::contourArea(contour);
-    double peri = cv::arcLength(contour, true);
+// Finds the best closed edge contour that encloses the largest yellow region.
+// An empty vector means that no reliable outer boundary was found.
+std::vector<cv::Point> findOuterSignBoundary(const cv::Mat& img,
+    const cv::Mat& yellowTargetMask,
+    const cv::Point2f& yellowCenter,
+    double yellowArea) {
+    cv::Mat gray, blurred, edges;
+    cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+    cv::GaussianBlur(gray, blurred, cv::Size(5, 5), 0);
+    cv::Canny(blurred, edges, 50, 150);
 
-    std::vector<cv::Point> approxLoose, approxStrict;
-    // Loose approximation for triangle (3) and rectangle (4)
-    cv::approxPolyDP(contour, approxLoose, 0.04 * peri, true);
-    // Strict approximation for octagon (7-9) and circle (>9)
-    cv::approxPolyDP(contour, approxStrict, 0.01 * peri, true);
+    // Join tiny breaks in the dark outer sign border.
+    cv::Mat edgeKernel = cv::getStructuringElement(
+        cv::MORPH_ELLIPSE, cv::Size(3, 3));
+    cv::morphologyEx(edges, edges, cv::MORPH_CLOSE, edgeKernel);
 
-    int verticesLoose = (int)approxLoose.size();
-    int verticesStrict = (int)approxStrict.size();
+    std::vector<std::vector<cv::Point>> edgeContours;
+    cv::findContours(edges, edgeContours, cv::RETR_LIST,
+        cv::CHAIN_APPROX_SIMPLE);
 
-    // Circularity using minimum enclosing circle area ratio
-    cv::Point2f center;
-    float radius;
-    cv::minEnclosingCircle(contour, center, radius);
-    double enclosingArea = CV_PI * radius * radius;
-    double circularity = (enclosingArea > 0) ? (area / enclosingArea) : 0;
+    const double imageArea = static_cast<double>(img.rows * img.cols);
+    const double targetPixels = static_cast<double>(cv::countNonZero(yellowTargetMask));
+    double bestScore = -1.0;
+    std::vector<cv::Point> bestContour;
 
-    if (verticesLoose == 3) {
-        return "Triangle";
-    }
-    else if (verticesLoose == 4) {
-        return "Rectangle";
-    }
-    else if (circularity > 0.75) {
-        if (verticesStrict >= 7 && verticesStrict <= 9) {
-            return "Octagon";
+    for (const auto& contour : edgeContours) {
+        const double contourArea = cv::contourArea(contour);
+        if (contourArea < 800 || contourArea > imageArea * 0.60) continue;
+
+        // The outside boundary should be at least slightly larger than the
+        // yellow region it is expected to enclose.
+        if (contourArea < yellowArea * 1.05) continue;
+
+        const cv::Rect box = cv::boundingRect(contour);
+        if (box.width < 30 || box.height < 30) continue;
+
+        // Reject very irregular, line-like contours. Traffic-sign outer
+        // boundaries are normally compact even when their shape differs.
+        std::vector<cv::Point> hull;
+        cv::convexHull(contour, hull);
+        const double hullArea = cv::contourArea(hull);
+        if (hullArea <= 0.0) continue;
+        const double solidity = contourArea / hullArea;
+        if (solidity < 0.60) continue;
+
+        // The yellow-region centre must be inside the possible outer border.
+        if (cv::pointPolygonTest(contour, yellowCenter, false) < 0) continue;
+
+        // Measure how much of the largest yellow candidate lies inside this
+        // closed edge contour.
+        cv::Mat candidateMask = cv::Mat::zeros(img.size(), CV_8U);
+        cv::drawContours(candidateMask, std::vector<std::vector<cv::Point>>{contour},
+            -1, cv::Scalar(255), cv::FILLED);
+        cv::Mat overlapMask;
+        cv::bitwise_and(candidateMask, yellowTargetMask, overlapMask);
+        const double coverage = cv::countNonZero(overlapMask) /
+            std::max(targetPixels, 1.0);
+        if (coverage < 0.70) continue;
+
+        // Prefer compact boundaries that contain most of the yellow candidate.
+        // The small area term prefers the closest enclosing boundary rather
+        // than a very large building or image-border contour.
+        const double areaRatio = contourArea / std::max(yellowArea, 1.0);
+        const double score = 2.0 * coverage + solidity - 0.03 * areaRatio;
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestContour = contour;
         }
-        else {
-            return "Circle";
-        }
     }
-    else {
-        return "Polygon";
-    }
+
+    return bestContour;
 }
 
-// ============================================
-// Function: processImage
-// ============================================
-// Performs segmentation, shapes classification,
-// and produces the standard 6-panel grid.
-// ============================================
-std::string processImage(const cv::Mat& src, const std::string& filename,
+// Returns true if a yellow sign candidate is found.
+bool processImage(const cv::Mat& src, const std::string& filename,
     const std::string& outPath, bool showSteps) {
-
-    // Resize image to fixed 300x300 for consistent layout
     cv::Mat img;
     cv::resize(src, img, cv::Size(300, 300));
-    cv::Mat black = cv::Mat::zeros(img.size(), img.type());
+    const cv::Mat black = cv::Mat::zeros(img.size(), img.type());
 
-    // 1. Get binary mask for yellow pixels
-    cv::Mat yellowMask = getYellowMask(img);
+    // 1. Yellow mask.
+    cv::Mat rawYellowMask, cleanYellowMask;
+    getYellowMasks(img, rawYellowMask, cleanYellowMask);
 
-    // 2. Find contours
+    // 2. Yellow-region contours.
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(yellowMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(cleanYellowMask, contours, cv::RETR_EXTERNAL,
+        cv::CHAIN_APPROX_SIMPLE);
 
-    // Initialize 6 panels
-    cv::Mat p1 = img.clone();                    // Original Image
-    cv::Mat p2 = black.clone();                  // All Contours
-    cv::Mat p3 = black.clone();                  // Largest Contour boundary
-    cv::Mat p4 = black.clone();                  // Clean Binary Mask (filled)
-    cv::Mat p5 = black.clone();                  // Shape name classification (filled green)
-    cv::Mat p6 = black.clone();                  // Segmented Yellow Sign (masked original)
+    std::vector<std::vector<cv::Point>> validContours;
+    for (const auto& contour : contours) {
+        if (cv::contourArea(contour) > 500) {
+            validContours.push_back(contour);
+        }
+    }
 
-    std::string shapeName = "No Shape";
+    // Required output panels.
+    cv::Mat p1 = img.clone();
+    cv::Mat p2;
+    cv::Mat p3 = black.clone();
+    cv::Mat p4 = black.clone();
+    cv::Mat p5 = black.clone();
+    cv::Mat p6 = black.clone();
+    cv::cvtColor(rawYellowMask, p2, cv::COLOR_GRAY2BGR);
+    cv::drawContours(p3, validContours, -1, cv::Scalar(255, 0, 255), 2);
 
-    // Draw all detected contours in magenta on panel 2
-    cv::drawContours(p2, contours, -1, cv::Scalar(255, 0, 255), 2);
+    bool detected = false;
+    std::string method = "None";
 
-    // 3. Find and isolate the largest yellow contour
-    if (!contours.empty()) {
+    if (!validContours.empty()) {
+        // Locate the largest yellow region. It acts only as a location hint;
+        // it is not assumed to be the complete sign boundary.
         int largestIdx = 0;
-        double maxArea = 0;
-        for (int i = 0; i < (int)contours.size(); i++) {
-            double a = cv::contourArea(contours[i]);
-            if (a > maxArea) {
-                maxArea = a;
+        double largestYellowArea = 0.0;
+        for (int i = 0; i < static_cast<int>(validContours.size()); ++i) {
+            const double area = cv::contourArea(validContours[i]);
+            if (area > largestYellowArea) {
+                largestYellowArea = area;
                 largestIdx = i;
             }
         }
 
-        // Apply a threshold of 500 pixels to eliminate noise
-        if (maxArea > 500) {
-            // Draw largest contour boundary on panel 3 (white outline)
-            cv::drawContours(p3, contours, largestIdx, cv::Scalar(255, 255, 255), 2);
+        cv::Mat largestYellowMask = cv::Mat::zeros(img.size(), CV_8U);
+        cv::drawContours(largestYellowMask, validContours, largestIdx,
+            cv::Scalar(255), cv::FILLED);
 
-            // Create filled mask on panel 4 (white fill)
-            cv::drawContours(p4, contours, largestIdx, cv::Scalar(255, 255, 255), cv::FILLED);
-
-            // 4. Classify shape of yellow sign
-            shapeName = classifyShape(contours[largestIdx]);
-
-            // Draw filled green shape on panel 5
-            cv::drawContours(p5, contours, largestIdx, cv::Scalar(0, 255, 0), cv::FILLED);
-
-            // 5. Segment the sign (bitwise AND using the binary mask)
-            cv::Mat maskGray;
-            cv::cvtColor(p4, maskGray, cv::COLOR_BGR2GRAY);
-            cv::bitwise_and(img, img, p6, maskGray);
+        const cv::Moments moments = cv::moments(validContours[largestIdx]);
+        cv::Point2f yellowCenter;
+        if (moments.m00 != 0.0) {
+            yellowCenter = cv::Point2f(
+                static_cast<float>(moments.m10 / moments.m00),
+                static_cast<float>(moments.m01 / moments.m00));
         }
+        else {
+            const cv::Rect box = cv::boundingRect(validContours[largestIdx]);
+            yellowCenter = cv::Point2f(box.x + box.width / 2.0F,
+                box.y + box.height / 2.0F);
+        }
+
+        // 3. Try to replace the incomplete yellow contour with its complete,
+        // shape-independent outer edge boundary.
+        const std::vector<cv::Point> outerBoundary = findOuterSignBoundary(
+            img, largestYellowMask, yellowCenter, largestYellowArea);
+
+        if (!outerBoundary.empty()) {
+            detected = true;
+            method = "Outer edge boundary";
+            cv::drawContours(p4,
+                std::vector<std::vector<cv::Point>>{outerBoundary},
+                -1, cv::Scalar(255, 255, 255), 2);
+            cv::drawContours(p5,
+                std::vector<std::vector<cv::Point>>{outerBoundary},
+                -1, cv::Scalar(255, 255, 255), cv::FILLED);
+        }
+        else {
+            // Safe fallback: use the original largest-yellow-contour method.
+            detected = true;
+            method = "Largest yellow contour (fallback)";
+            cv::drawContours(p4, validContours, largestIdx,
+                cv::Scalar(255, 255, 255), 2);
+            cv::drawContours(p5, validContours, largestIdx,
+                cv::Scalar(255, 255, 255), cv::FILLED);
+        }
+
+        cv::Mat finalMask;
+        cv::cvtColor(p5, finalMask, cv::COLOR_BGR2GRAY);
+        cv::bitwise_and(img, img, p6, finalMask);
     }
 
-    // 6. Add standard labels to the panels
     auto addLabel = [](cv::Mat& panel, const std::string& text) {
-        int h = panel.rows;
-        cv::putText(panel, text, cv::Point(5, h - 10),
-            cv::FONT_HERSHEY_SIMPLEX, 0.45, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
-    };
+        cv::putText(panel, text, cv::Point(5, panel.rows - 10),
+            cv::FONT_HERSHEY_SIMPLEX, 0.45,
+            cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+        };
 
     addLabel(p1, "Original");
-    addLabel(p2, "All Contours");
-    addLabel(p3, "Largest Contour");
-    addLabel(p4, "Yellow Mask");
-    addLabel(p5, "Shape Classification: " + shapeName);
+    addLabel(p2, "Yellow Mask");
+    addLabel(p3, "All Contours");
+    addLabel(p4, "Largest Contour");
+    addLabel(p5, "Filled Mask");
     addLabel(p6, "Segmented Sign");
 
-    // 7. Combine panels into a 3x2 grid (follow the partition)
     cv::Mat topRow, bottomRow, grid;
     cv::hconcat(std::vector<cv::Mat>{p1, p2, p3}, topRow);
     cv::hconcat(std::vector<cv::Mat>{p4, p5, p6}, bottomRow);
     cv::vconcat(topRow, bottomRow, grid);
-
-    // Save grid result
     cv::imwrite(outPath, grid);
 
-    // Optional interactive visualization
     if (showSteps) {
-        std::string winName = "Yellow Sign Segmentation - " + filename;
+        const std::string winName = "Yellow Sign Segmentation - " + filename;
         cv::namedWindow(winName, cv::WINDOW_NORMAL);
         cv::resizeWindow(winName, 900, 600);
         cv::imshow(winName, grid);
@@ -209,33 +235,32 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
         cv::destroyAllWindows();
     }
 
-    std::cout << "  [" << filename << "] Detected: " << shapeName << std::endl;
-    return shapeName;
+    std::cout << "  [" << filename << "] "
+        << (detected ? "Yellow Sign Detected - " + method
+            : "No Yellow Sign Detected")
+        << std::endl;
+    return detected;
 }
 
-// ============================================
-// Main Function
-// ============================================
 int main(int argc, char** argv) {
     std::cout << "========================================" << std::endl;
     std::cout << " Member 3: Yellow Sign Segmentation" << std::endl;
     std::cout << " MYSignVoice Preliminary Work" << std::endl;
     std::cout << "========================================" << std::endl;
 
-    // Check configuration arguments
     bool showSteps = false;
 #ifdef _DEBUG
     showSteps = true;
-    std::cout << "Mode: Debug mode detected (Visual Studio). Visualization enabled automatically." << std::endl;
+    std::cout << "Mode: Debug mode detected. Visualization enabled automatically."
+        << std::endl;
 #endif
     if (argc > 1 && std::string(argv[1]) == "--show") {
         showSteps = true;
         std::cout << "Mode: Step-by-step visualization enabled" << std::endl;
     }
 
-    // Robust path lookup for the Color Inputs directory
-    std::string baseDir = "";
-    std::vector<std::string> pathCandidates = {
+    std::string baseDir;
+    const std::vector<std::string> pathCandidates = {
         "../../Color Inputs/Yellow Signs",
         "../Color Inputs/Yellow Signs",
         "Color Inputs/Yellow Signs"
@@ -249,73 +274,56 @@ int main(int argc, char** argv) {
     }
 
     if (baseDir.empty()) {
-        std::cerr << "ERROR: Could not locate directory 'Color Inputs/Yellow Signs'!" << std::endl;
-        std::cerr << "Make sure the 'Color Inputs' folder is at the root level." << std::endl;
+        std::cerr << "ERROR: Could not locate directory 'Color Inputs/Yellow Signs'!"
+            << std::endl;
         return -1;
     }
 
     std::cout << "Reading images from: " << baseDir << std::endl;
-
-    // Create output folder in the same directory as executable
-    std::string outputDir = "output";
+    const fs::path outputDir =
+        fs::path("preliminary") / "member3_yellow_segmentation" / "output";
     fs::create_directories(outputDir);
 
     int totalImages = 0;
     int totalDetected = 0;
-    int totalCircle = 0, totalTriangle = 0, totalRect = 0, totalOctagon = 0, totalPolygon = 0;
 
     for (const auto& entry : fs::directory_iterator(baseDir)) {
         if (!entry.is_regular_file()) continue;
 
-        std::string ext = entry.path().extension().string();
-        // Convert extension to lowercase for comparison
-        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-        if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".bmp") continue;
+        std::string extension = entry.path().extension().string();
+        std::transform(extension.begin(), extension.end(), extension.begin(),
+            [](unsigned char c) {
+                return static_cast<char>(std::tolower(c));
+            });
+        if (extension != ".png" && extension != ".jpg" &&
+            extension != ".jpeg" && extension != ".bmp") continue;
 
-        std::string filepath = entry.path().string();
-        std::string filename = entry.path().filename().string();
-
-        cv::Mat img = cv::imread(filepath);
-        if (img.empty()) {
+        const std::string filename = entry.path().filename().string();
+        const cv::Mat image = cv::imread(entry.path().string());
+        if (image.empty()) {
             std::cerr << "  WARNING: Failed to read image " << filename << std::endl;
             continue;
         }
 
-        totalImages++;
-
-        // Define output file path
-        std::string outputPath = outputDir + "/Grid_" + filename;
-
-        // Process yellow sign segmentation
-        std::string shape = processImage(img, filename, outputPath, showSteps);
-
-        if (shape != "No Shape") {
-            totalDetected++;
-            if (shape == "Circle") totalCircle++;
-            else if (shape == "Triangle") totalTriangle++;
-            else if (shape == "Rectangle") totalRect++;
-            else if (shape == "Octagon") totalOctagon++;
-            else if (shape == "Polygon") totalPolygon++;
+        ++totalImages;
+        const std::string outputPath =
+            (outputDir / ("Grid_" + filename)).string();
+        if (processImage(image, filename, outputPath, showSteps)) {
+            ++totalDetected;
         }
     }
 
-    // Output stats matching Member 4's reporting formatting
-    double overallAcc = (totalImages > 0) ? (100.0 * totalDetected / totalImages) : 0;
+    const double detectionRate = totalImages > 0
+        ? 100.0 * totalDetected / totalImages : 0.0;
+
     std::cout << "\n========================================" << std::endl;
     std::cout << " YELLOW SIGN SEGMENTATION SUMMARY" << std::endl;
     std::cout << "========================================" << std::endl;
     std::cout << " Total images processed: " << totalImages << std::endl;
-    std::cout << " Total shapes detected:  " << totalDetected << std::endl;
-    std::cout << " Detection Rate:         " << std::fixed << std::setprecision(1) << overallAcc << "%" << std::endl;
-    std::cout << "----------------------------------------" << std::endl;
-    std::cout << " Detected Shape Breakdown:" << std::endl;
-    std::cout << "   Circle:    " << totalCircle << std::endl;
-    std::cout << "   Triangle:  " << totalTriangle << std::endl;
-    std::cout << "   Rectangle: " << totalRect << std::endl;
-    std::cout << "   Octagon:   " << totalOctagon << std::endl;
-    std::cout << "   Polygon:   " << totalPolygon << std::endl;
-    std::cout << "========================================" << std::endl;
-    std::cout << " Results saved to directory: " << outputDir << "/" << std::endl;
+    std::cout << " Total yellow signs detected: " << totalDetected << std::endl;
+    std::cout << " Detection Rate: " << std::fixed << std::setprecision(1)
+        << detectionRate << "%" << std::endl;
+    std::cout << " Output folder location: " << outputDir.string() << std::endl;
     std::cout << "========================================" << std::endl;
 
     return 0;

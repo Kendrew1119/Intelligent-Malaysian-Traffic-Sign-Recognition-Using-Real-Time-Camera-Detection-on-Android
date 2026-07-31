@@ -22,50 +22,19 @@ def get_yellow_mask(src):
     # Convert BGR to HSV
     hsv = cv2.cvtColor(src, cv2.COLOR_BGR2HSV)
     
-    # Yellow range in HSV: H: [12, 38], S: [80, 255], V: [50, 255]
-    lower = np.array([12, 80, 50], dtype=np.uint8)
-    upper = np.array([38, 255, 255], dtype=np.uint8)
+    # Yellow range in HSV (stricter):
+    lower = np.array([18, 100, 80], dtype=np.uint8)
+    upper = np.array([35, 255, 255], dtype=np.uint8)
     mask = cv2.inRange(hsv, lower, upper)
     
-    # Morphological OPEN (3x3 rect kernel)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    # Morphological OPEN and CLOSE using a 5x5 elliptical struct element
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-    
-    # Morphological CLOSE (3x3 rect kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     
     return mask
 
-def classify_shape(contour):
-    area = cv2.contourArea(contour)
-    peri = cv2.arcLength(contour, True)
-    
-    # Loose approximation for triangle (3) and rectangle (4)
-    approx_loose = cv2.approxPolyDP(contour, 0.04 * peri, True)
-    # Strict approximation for octagon (7-9) and circle (>9)
-    approx_strict = cv2.approxPolyDP(contour, 0.01 * peri, True)
-    
-    vertices_loose = len(approx_loose)
-    vertices_strict = len(approx_strict)
-    
-    # Circularity using minimum enclosing circle
-    (x, y), radius = cv2.minEnclosingCircle(contour)
-    enclosing_area = np.pi * radius * radius
-    circularity = area / enclosing_area if enclosing_area > 0 else 0
-    
-    if vertices_loose == 3:
-        return "Triangle"
-    elif vertices_loose == 4:
-        return "Rectangle"
-    elif circularity > 0.75:
-        if 7 <= vertices_strict <= 9:
-            return "Octagon"
-        else:
-            return "Circle"
-    else:
-        return "Polygon"
-
-def process_image(src, filename, out_path):
+def process_image(src, filename, out_path, show_steps=False):
     # Resize to 300x300 for consistent layout
     img = cv2.resize(src, (300, 300))
     black = np.zeros_like(img)
@@ -76,66 +45,117 @@ def process_image(src, filename, out_path):
     # 2. Find contours
     contours, _ = cv2.findContours(yellow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
+    # 3. Contour Filtering (Geometry Check)
+    valid_contours = []
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area > 500:
+            x, y, w, h = cv2.boundingRect(cnt)
+            if w > 25 and h > 25:
+                aspect_ratio = float(w) / h
+                if 0.4 <= aspect_ratio <= 1.6:
+                    valid_contours.append(cnt)
+                    
     # Initialize 6 panels
     p1 = img.copy()
-    p2 = black.copy()
-    p3 = black.copy()
-    p4 = black.copy()
-    p5 = black.copy()
-    p6 = black.copy()
+    p2 = cv2.cvtColor(yellow_mask, cv2.COLOR_GRAY2BGR) # Yellow Mask
+    p3 = black.copy()                                 # All Contours
+    p4 = black.copy()                                 # Largest Contour
+    p5 = black.copy()                                 # Filled Mask
+    p6 = black.copy()                                 # Segmented Sign (black background)
     
-    shape_name = "No Shape"
+    # Draw valid filtered contours in magenta on p3
+    cv2.drawContours(p3, valid_contours, -1, (255, 0, 255), 2)
     
-    # Draw all contours in magenta on p2
-    cv2.drawContours(p2, contours, -1, (255, 0, 255), 2)
+    detected = False
+    success = False
     
-    # 3. Find largest yellow contour
-    if len(contours) > 0:
+    # 4. Find largest yellow contour from valid contours
+    if len(valid_contours) > 0:
+        detected = True
         largest_idx = 0
         max_area = 0
-        for i, cnt in enumerate(contours):
+        for i, cnt in enumerate(valid_contours):
             a = cv2.contourArea(cnt)
             if a > max_area:
                 max_area = a
                 largest_idx = i
                 
         if max_area > 500:
-            # Draw largest outline on p3
-            cv2.drawContours(p3, contours, largest_idx, (255, 255, 255), 2)
+            # Draw largest outline on p4 in white
+            cv2.drawContours(p4, valid_contours, largest_idx, (255, 255, 255), 2)
             
-            # Create filled mask on p4
-            cv2.drawContours(p4, contours, largest_idx, (255, 255, 255), cv2.FILLED)
+            # Create filled mask on p5 in white
+            cv2.drawContours(p5, valid_contours, largest_idx, (255, 255, 255), cv2.FILLED)
             
-            # 4. Classify shape
-            shape_name = classify_shape(contours[largest_idx])
+            # Segment sign (bitwise AND using p5's filled mask)
+            p6 = cv2.bitwise_and(img, img, mask=p5[:, :, 0])
             
-            # Draw filled green shape on p5
-            cv2.drawContours(p5, contours, largest_idx, (0, 255, 0), cv2.FILLED)
+            # 5. Automatic Segmentation Status Heuristics
+            # check 1: touches or is within 3 pixels of any image edge
+            touches_edge = False
+            lx, ly, lw, lh = cv2.boundingRect(valid_contours[largest_idx])
+            if lx <= 3 or ly <= 3 or (lx + lw) >= 297 or (ly + lh) >= 297:
+                touches_edge = True
+                
+            # check 2: occupies more than 45% of total image area
+            too_large = max_area > (90000 * 0.45)
             
-            # 5. Segment sign (bitwise AND)
-            p6 = cv2.bitwise_and(img, img, mask=p4[:, :, 0])
+            # check 3: another valid contour exists whose area is at least 30% of largest
+            has_competitor = False
+            for i, cnt in enumerate(valid_contours):
+                if i == largest_idx:
+                    continue
+                a = cv2.contourArea(cnt)
+                if a >= 0.30 * max_area:
+                    has_competitor = True
+                    break
+                    
+            if not touches_edge and not too_large and not has_competitor:
+                success = True
+                
+    # 6. Draw segmentation status label on panel 6
+    status_color = (0, 255, 0) if success else (0, 0, 255)
+    status_text = "Segmentation: SUCCESS" if success else "Segmentation: FAILED"
+    cv2.putText(p6, status_text, (5, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.45, status_color, 1, cv2.LINE_AA)
             
-    # 6. Add labels
+    # 7. Add standard labels
     def add_label(panel, text):
         h, w = panel.shape[:2]
         cv2.putText(panel, text, (5, h - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
         
     add_label(p1, "Original")
-    add_label(p2, "All Contours")
-    add_label(p3, "Largest Contour")
-    add_label(p4, "Yellow Mask")
-    add_label(p5, f"Shape: {shape_name}")
-    add_label(p6, "Sign Segmented")
+    add_label(p2, "Yellow Mask")
+    add_label(p3, "All Contours")
+    add_label(p4, "Largest Contour")
+    add_label(p5, "Filled Mask")
+    add_label(p6, "Segmented Sign")
     
-    # 7. Stack panels into 3x2 grid
+    # 8. Stack panels into 3x2 grid:
+    #    Top row: Original, Yellow Mask, All Contours
+    #    Bottom row: Largest Contour, Filled Mask, Segmented Sign
     top_row = np.hstack([p1, p2, p3])
     bottom_row = np.hstack([p4, p5, p6])
     grid = np.vstack([top_row, bottom_row])
     
     # Save the result
     cv2.imwrite(out_path, grid)
-    print(f"  [{filename}] Detected: {shape_name}")
-    return shape_name
+    
+    # Optional interactive visualization
+    if show_steps:
+        win_name = "Yellow Sign Segmentation - " + filename
+        cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(win_name, 900, 600)
+        cv2.imshow(win_name, grid)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        
+    if detected:
+        print(f"  [{filename}] Yellow Sign Detected - {'SUCCESS' if success else 'FAILED'}")
+    else:
+        print(f"  [{filename}] No Yellow Sign Detected - FAILED")
+        
+    return detected, success
 
 def main():
     print("=" * 40)
@@ -143,6 +163,11 @@ def main():
     print(" MYSignVoice Preliminary Work")
     print("=" * 40)
     
+    # Check command-line arguments
+    show_steps = len(sys.argv) > 1 and sys.argv[1] == "--show"
+    if show_steps:
+        print("Mode: Step-by-step visualization enabled")
+        
     # Find base folder dynamically
     base_dir = ""
     candidates = [
@@ -166,7 +191,8 @@ def main():
     
     total_images = 0
     total_detected = 0
-    shapes = {"Circle": 0, "Triangle": 0, "Rectangle": 0, "Octagon": 0, "Polygon": 0}
+    total_successful = 0
+    total_failed = 0
     
     for filename in sorted(os.listdir(base_dir)):
         ext = os.path.splitext(filename)[1].lower()
@@ -182,26 +208,27 @@ def main():
         total_images += 1
         out_path = os.path.join(output_dir, f"Grid_{filename}")
         
-        shape = process_image(img, filename, out_path)
-        
-        if shape != "No Shape":
+        det, succ = process_image(img, filename, out_path, show_steps)
+        if det:
             total_detected += 1
-            if shape in shapes:
-                shapes[shape] += 1
+        if succ:
+            total_successful += 1
+        else:
+            total_failed += 1
                 
     detection_rate = (100.0 * total_detected / total_images) if total_images > 0 else 0
+    success_rate = (100.0 * total_successful / total_images) if total_images > 0 else 0
+    
     print("\n" + "=" * 40)
     print(" YELLOW SIGN SEGMENTATION SUMMARY")
     print("=" * 40)
     print(f" Total images processed: {total_images}")
-    print(f" Total shapes detected:  {total_detected}")
+    print(f" Total yellow signs detected: {total_detected}")
+    print(f" Total successful segmentations: {total_successful}")
+    print(f" Total failed segmentations: {total_failed}")
     print(f" Detection Rate:         {detection_rate:.1f}%")
-    print("-" * 40)
-    print(" Detected Shape Breakdown:")
-    for s_name, count in shapes.items():
-        print(f"   {s_name}:    {count}")
-    print("=" * 40)
-    print(f" Results saved to directory: {output_dir}/")
+    print(f" Success Rate:           {success_rate:.1f}%")
+    print(f" Output folder location: {output_dir}/")
     print("=" * 40)
 
 if __name__ == "__main__":
