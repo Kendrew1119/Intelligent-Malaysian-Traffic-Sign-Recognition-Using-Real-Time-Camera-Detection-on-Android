@@ -32,6 +32,7 @@
 #include <string>
 #include <filesystem>
 #include <cmath>
+#include <algorithm>
 
 namespace fs = std::filesystem;
 
@@ -295,6 +296,45 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
 }
 
 // ============================================
+// Camera-only white balance
+// Limited correction to avoid over-correction
+// ============================================
+cv::Mat cameraWhiteBalance(const cv::Mat& src) {
+    cv::Mat result;
+    src.convertTo(result, CV_32FC3);
+
+    cv::Scalar avg = cv::mean(result);
+
+    double avgB = avg[0];
+    double avgG = avg[1];
+    double avgR = avg[2];
+
+    double avgGray = (avgB + avgG + avgR) / 3.0;
+
+    double gainB = avgGray / (avgB + 1e-6);
+    double gainG = avgGray / (avgG + 1e-6);
+    double gainR = avgGray / (avgR + 1e-6);
+
+    // Limit correction
+    gainB = std::clamp(gainB, 0.80, 1.25);
+    gainG = std::clamp(gainG, 0.80, 1.25);
+    gainR = std::clamp(gainR, 0.80, 1.25);
+
+    std::vector<cv::Mat> channels;
+    cv::split(result, channels);
+
+    channels[0] *= gainB;
+    channels[1] *= gainG;
+    channels[2] *= gainR;
+
+    cv::merge(channels, result);
+
+    result.convertTo(result, CV_8UC3);
+
+    return result;
+}
+
+// ============================================
 // Function: runCameraDemo
 // ============================================
 // Opens the webcam and performs real-time
@@ -317,19 +357,36 @@ void runCameraDemo() {
     bool showMask = false;
     std::vector<std::string> colors = { "Red Signs", "Blue Signs", "Yellow Signs" };
 
+    std::string stableShape = "";
+    std::string stableColor = "";
+    cv::Rect stableBox;
+    int stableFrames = 0;
+    const int REQUIRED_STABLE_FRAMES = 3;
+
+    cv::namedWindow("Live Shape & Color Detection", cv::WINDOW_NORMAL);
+    cv::resizeWindow("Live Shape & Color Detection", 800, 600);
+
     while (true) {
         cv::Mat frame;
         cap >> frame;
         if (frame.empty()) break;
 
-        // Resize for faster processing
         cv::resize(frame, frame, cv::Size(640, 480));
+        
+        // Camera-only illumination correction
+        cv::Mat correctedFrame = cameraWhiteBalance(frame);
+
         cv::Mat display = frame.clone();
         cv::Mat allMasks = cv::Mat::zeros(frame.size(), CV_8UC1);
         cv::Mat allContours = cv::Mat::zeros(frame.size(), CV_8UC3);
 
+        double bestCandidateArea = 0;
+        std::string bestCandidateShape = "";
+        std::string bestCandidateColor = "";
+        cv::Rect bestCandidateBox;
+
         for (const auto& color : colors) {
-            cv::Mat mask = getColorMask(frame, color);
+            cv::Mat mask = getColorMask(correctedFrame, color);
             cv::bitwise_or(allMasks, mask, allMasks);
 
             std::vector<std::vector<cv::Point>> contours;
@@ -339,8 +396,9 @@ void runCameraDemo() {
             cv::drawContours(allContours, contours, -1, cv::Scalar(255, 0, 255), 2);
 
             for (const auto& contour : contours) {
+                double area = cv::contourArea(contour);
                 // 1. Increase minimum area to avoid small background noise
-                if (cv::contourArea(contour) > 3000) {
+                if (area > 3000) {
                     
                     // 2. Add Aspect Ratio check (real signs are mostly square-ish proportions)
                     cv::Rect box = cv::boundingRect(contour);
@@ -354,7 +412,7 @@ void runCameraDemo() {
                         std::vector<cv::Point> hull;
                         cv::convexHull(contour, hull);
                         double hullArea = cv::contourArea(hull);
-                        double solidity = (hullArea > 0) ? (cv::contourArea(contour) / hullArea) : 0;
+                        double solidity = (hullArea > 0) ? (area / hullArea) : 0;
                         
                         // Yellow signs bleed into the background more, so they need a lower solidity threshold
                         double requiredSolidity = (color == "Yellow Signs") ? 0.40 : 0.50;
@@ -363,31 +421,57 @@ void runCameraDemo() {
                         if (solidity > requiredSolidity) {
                             std::string shape = classifyShape(contour);
                         
-                        // 3. Ignore generic polygons (usually background noise)
-                        if (shape != "Polygon") { 
-                            cv::Scalar boxColor;
-                            std::string colorName;
-                            if (color == "Red Signs") { boxColor = cv::Scalar(0, 0, 255); colorName = "Red"; }
-                            else if (color == "Blue Signs") { boxColor = cv::Scalar(255, 0, 0); colorName = "Blue"; }
-                            else { boxColor = cv::Scalar(0, 255, 255); colorName = "Yellow"; }
+                            // 3. Ignore generic polygons (usually background noise)
+                            if (shape != "Polygon") { 
+                                if (area > bestCandidateArea) {
+                                    bestCandidateArea = area;
+                                    bestCandidateShape = shape;
+                                    bestCandidateColor = color;
+                                    bestCandidateBox = box;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
-                            // Draw bounding box and label
-                            cv::rectangle(display, box, boxColor, 2);
-                            std::string label = colorName + " " + shape;
-                            
-                            // Add background box for text readability
-                            int baseline = 0;
-                            cv::Size textSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.6, 2, &baseline);
-                            cv::rectangle(display, cv::Point(box.x, box.y - textSize.height - 10), 
-                                          cv::Point(box.x + textSize.width, box.y), boxColor, cv::FILLED);
-                            cv::putText(display, label, cv::Point(box.x, box.y - 5),
-                                cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2);
-                        } // End of shape != Polygon
-                    } // End of solidity > 0.7
-                } // End of aspectRatio
-            } // End of contourArea
-        } // End of contour loop
-    } // End of color loop
+        if (bestCandidateArea > 0) {
+            if (bestCandidateShape == stableShape && bestCandidateColor == stableColor) {
+                stableFrames++;
+                stableBox = bestCandidateBox;
+            } else {
+                stableShape = bestCandidateShape;
+                stableColor = bestCandidateColor;
+                stableBox = bestCandidateBox;
+                stableFrames = 1;
+            }
+        } else {
+            stableFrames = 0;
+            stableShape = "";
+            stableColor = "";
+        }
+
+        if (stableFrames >= REQUIRED_STABLE_FRAMES) {
+            cv::Scalar boxColor;
+            std::string colorName;
+            if (stableColor == "Red Signs") { boxColor = cv::Scalar(0, 0, 255); colorName = "Red"; }
+            else if (stableColor == "Blue Signs") { boxColor = cv::Scalar(255, 0, 0); colorName = "Blue"; }
+            else { boxColor = cv::Scalar(0, 255, 255); colorName = "Yellow"; }
+
+            // Draw bounding box and label
+            cv::rectangle(display, stableBox, boxColor, 2);
+            std::string label = colorName + " " + stableShape;
+            
+            // Add background box for text readability
+            int baseline = 0;
+            cv::Size textSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.6, 2, &baseline);
+            cv::rectangle(display, cv::Point(stableBox.x, stableBox.y - textSize.height - 10), 
+                          cv::Point(stableBox.x + textSize.width, stableBox.y), boxColor, cv::FILLED);
+            cv::Scalar textColor = (stableColor == "Yellow Signs") ? cv::Scalar(0, 0, 0) : cv::Scalar(255, 255, 255);
+            cv::putText(display, label, cv::Point(stableBox.x, stableBox.y - 5),
+                cv::FONT_HERSHEY_SIMPLEX, 0.6, textColor, 2);
+        }
 
         if (showMask) {
             cv::Mat p1, p2, p3, p4;
@@ -425,6 +509,7 @@ void runCameraDemo() {
         if (key == 'q' || key == 27) break;
         if (key == 'm') showMask = !showMask;
     }
+
     cap.release();
     cv::destroyAllWindows();
 }
