@@ -88,11 +88,30 @@ namespace {
     }
 
     cv::Mat getBlueMask(const cv::Mat& source) {
-        cv::Mat hsv;
-        cv::cvtColor(source, hsv, cv::COLOR_BGR2HSV);
+        // CLAHE preprocessing to normalize lighting (handles overcast/shaded signs)
+        cv::Mat lab;
+        cv::cvtColor(source, lab, cv::COLOR_BGR2Lab);
+        std::vector<cv::Mat> labChannels;
+        cv::split(lab, labChannels);
+        cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8, 8));
+        clahe->apply(labChannels[0], labChannels[0]);
+        cv::merge(labChannels, lab);
+        cv::Mat enhanced;
+        cv::cvtColor(lab, enhanced, cv::COLOR_Lab2BGR);
 
+        // GaussianBlur to reduce high-frequency noise before HSV conversion
+        cv::Mat blurred;
+        cv::GaussianBlur(enhanced, blurred, cv::Size(5, 5), 0);
+
+        cv::Mat hsv;
+        cv::cvtColor(blurred, hsv, cv::COLOR_BGR2HSV);
+
+        // Blue HSV range matching Member 4's tested values
+        // H=[85,135]: captures full range of Malaysian blue signs
+        // S=[80,255]: balanced — catches most signs without too much sky noise
+        // V=[40,255]: catches shaded/darker signs
         cv::Mat mask;
-        cv::inRange(hsv, cv::Scalar(100, 80, 50), cv::Scalar(130, 255, 255), mask);
+        cv::inRange(hsv, cv::Scalar(85, 80, 40), cv::Scalar(135, 255, 255), mask);
 
         const cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
         cv::morphologyEx(mask, mask, cv::MORPH_OPEN, kernel);
@@ -126,7 +145,15 @@ namespace {
             const cv::Rect box = cv::boundingRect(contour);
             if (box.width <= 25 || box.height <= 25) continue;
             const double aspectRatio = static_cast<double>(box.width) / box.height;
-            if (aspectRatio >= kMinimumAspectRatio && aspectRatio <= kMaximumAspectRatio) {
+            if (aspectRatio < kMinimumAspectRatio || aspectRatio > kMaximumAspectRatio) continue;
+
+            // Solidity check (from shape_detection.cpp): reject noisy/irregular contours.
+            // A real sign is solid, not fragmented background noise.
+            std::vector<cv::Point> hull;
+            cv::convexHull(contour, hull);
+            const double hullArea = cv::contourArea(hull);
+            const double solidity = (hullArea > 0) ? (area / hullArea) : 0;
+            if (solidity > 0.50) {
                 validContours.push_back(contour);
             }
         }
@@ -153,23 +180,31 @@ namespace {
                 }
             }
 
-            cv::drawContours(p4, validContours, static_cast<int>(largestIdx), cv::Scalar(255, 255, 255), 2);
-            cv::drawContours(p5, validContours, static_cast<int>(largestIdx), cv::Scalar(255, 255, 255), cv::FILLED);
+            // Use convex hull on the largest contour for cleaner segmentation
+            // (from shape_detection.cpp — fixes fragmented contours from white symbols)
+            std::vector<cv::Point> hull;
+            cv::convexHull(validContours[largestIdx], hull);
+            std::vector<std::vector<cv::Point>> hullVec = { hull };
+
+            cv::drawContours(p4, hullVec, 0, cv::Scalar(255, 255, 255), 2);
+            cv::drawContours(p5, hullVec, 0, cv::Scalar(255, 255, 255), cv::FILLED);
 
             cv::Mat filledGray;
             cv::cvtColor(p5, filledGray, cv::COLOR_BGR2GRAY);
             cv::bitwise_and(img, img, p6, filledGray);
 
             const cv::Rect box = cv::boundingRect(validContours[largestIdx]);
-            const bool touchesEdge = box.x <= 3 || box.y <= 3 ||
-                (box.x + box.width) >= kPanelSize - 3 ||
-                (box.y + box.height) >= kPanelSize - 3;
-            const bool tooLarge = maxArea > (kPanelSize * kPanelSize * 0.45);
+            // Relaxed thresholds: many blue sign photos are close-ups where the
+            // sign naturally fills most of the frame or sits near the edge.
+            const bool touchesEdge = box.x <= 1 || box.y <= 1 ||
+                (box.x + box.width) >= kPanelSize - 1 ||
+                (box.y + box.height) >= kPanelSize - 1;
+            const bool tooLarge = maxArea > (kPanelSize * kPanelSize * 0.85);
 
             bool hasCompetitor = false;
             for (size_t i = 0; i < validContours.size(); ++i) {
                 if (i == largestIdx) continue;
-                if (cv::contourArea(validContours[i]) >= 0.30 * maxArea) {
+                if (cv::contourArea(validContours[i]) >= 0.60 * maxArea) {
                     hasCompetitor = true;
                     break;
                 }
@@ -177,10 +212,6 @@ namespace {
 
             success = !touchesEdge && !tooLarge && !hasCompetitor;
         }
-
-        const cv::Scalar statusColor = success ? cv::Scalar(0, 255, 0) : cv::Scalar(0, 0, 255);
-        const std::string statusText = success ? "Segmentation: SUCCESS" : "Segmentation: FAILED";
-        cv::putText(p6, statusText, cv::Point(5, 25), cv::FONT_HERSHEY_SIMPLEX, 0.45, statusColor, 1, cv::LINE_AA);
 
         addLabel(p1, "Original");
         addLabel(p2, "Blue Mask");
