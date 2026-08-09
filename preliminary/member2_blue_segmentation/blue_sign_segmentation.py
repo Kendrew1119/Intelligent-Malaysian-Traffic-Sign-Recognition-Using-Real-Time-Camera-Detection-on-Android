@@ -1,18 +1,30 @@
 # ============================================
 # [Member 2] blue_sign_segmentation.py
 # ============================================
-# Module: Blue Sign Segmentation Using Color Information
-# Owner: Member 2
-#
-# Purpose:
-#   - Python replica of the C++ blue_sign_segmentation.cpp code.
-#   - Bypasses Windows Application Control policy blocking custom .exe files.
-#   - Generates the exact same 6-panel grid output images for Report Chapter 4.
+# Detects blue Malaysian traffic signs with OpenCV HSV colour segmentation.
 #
 # Usage:
-#   python blue_sign_segmentation.py                 (auto-finds Blue Signs folder)
-#   python blue_sign_segmentation.py --show          (with step-by-step visualization)
-#   python blue_sign_segmentation.py "path/to/images"
+#   python blue_sign_segmentation.py [image-or-folder]
+#
+# The argument is optional. If omitted, the program searches a few likely
+# relative locations for a "Color Inputs/Blue Signs" folder, so it can run
+# with no argument as long as the working directory is somewhere inside the repo.
+#
+# Examples:
+#   python blue_sign_segmentation.py
+#   python blue_sign_segmentation.py "../../Color Inputs/Blue Signs"
+#   python blue_sign_segmentation.py "../../Color Inputs/Blue Signs/example.jpg"
+#
+# Displays a 6-panel grid (Original, Blue Mask, All Contours, Largest
+# Contour, Filled Mask, Segmented Sign) live in a window for each image.
+# Nothing is written to disk. Press any key to advance to the next image,
+# or ESC to quit early.
+#
+# A segmentation counts as SUCCESS only when the extracted region looks like a
+# COMPLETE sign: it must sit inside the frame, have no rival contour, and fill
+# its own best-fit shape (ellipse for circular signs, rectangle for rectangular
+# ones). Partial captures - a crescent or half-disc left behind by glare - are
+# reported as FAILED with the reason printed alongside.
 # ============================================
 
 import cv2
@@ -24,7 +36,22 @@ import sys
 MINIMUM_CONTOUR_AREA = 500.0
 MINIMUM_ASPECT_RATIO = 0.45
 MAXIMUM_ASPECT_RATIO = 2.25
-PANEL_SIZE = 300
+PANEL_SIZE           = 300
+
+# --- Success (completeness) thresholds ---
+# Loose gate used only to keep a contour in the candidate list.
+CANDIDATE_SOLIDITY   = 0.50
+# Strict gates applied when deciding SUCCESS vs FAILED.
+# Solidity: how much of its own convex hull the raw contour occupies.
+# A whole disc scores ~0.95; a crescent or C-shape left by glare scores far lower.
+SUCCESS_SOLIDITY     = 0.80
+# Ellipse fill: hull area / best-fit ellipse area. ~1.0 for a full disc,
+# stays ~1.0 for a disc seen at an angle. A half-disc drops well below.
+MINIMUM_ELLIPSE_FILL = 0.85
+# Rect fill: hull area / min-area-rectangle area. ~1.0 for rectangular
+# signs, 0.785 for any circle/ellipse/half-disc - so it only ever rescues
+# genuinely rectangular signs.
+MINIMUM_RECT_FILL    = 0.90
 
 
 def find_default_input_path():
@@ -44,7 +71,7 @@ def find_default_input_path():
 
 
 def get_blue_mask(src):
-    """HSV thresholding for blue pixels with CLAHE preprocessing and morphological cleanup."""
+    """CLAHE + GaussianBlur + HSV thresholding with morphological cleanup."""
     # CLAHE preprocessing to normalize lighting (handles overcast/shaded signs)
     lab = cv2.cvtColor(src, cv2.COLOR_BGR2LAB)
     l, a, b = cv2.split(lab)
@@ -60,15 +87,15 @@ def get_blue_mask(src):
 
     # Blue HSV range matching Member 4's tested values
     # H=[85,135]: captures full range of Malaysian blue signs
-    # S=[80,255]: balanced — catches most signs without too much sky noise
+    # S=[80,255]: balanced - catches most signs without too much sky noise
     # V=[40,255]: catches shaded/darker signs
-    lower = np.array([85, 80, 40], dtype=np.uint8)
+    lower = np.array([85,  80,  40], dtype=np.uint8)
     upper = np.array([135, 255, 255], dtype=np.uint8)
     mask = cv2.inRange(hsv, lower, upper)
 
     # Morphological OPEN and CLOSE using a 5x5 elliptical structuring element
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,  kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
     return mask
@@ -84,11 +111,12 @@ def add_label(panel, text):
 def build_grid(source, filename):
     """
     Builds the 6-panel grid for one image.
-    Returns (grid, detected).
+    Returns (grid, detected, success).
     """
     detected = False
+    success  = False
 
-    img = cv2.resize(source, (PANEL_SIZE, PANEL_SIZE))
+    img   = cv2.resize(source, (PANEL_SIZE, PANEL_SIZE))
     black = np.zeros_like(img)
 
     # 1. Get blue mask
@@ -97,7 +125,7 @@ def build_grid(source, filename):
     # 2. Find contours
     contours, _ = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # 3. Filter contours by area, size, aspect ratio, and solidity
+    # 3. Filter contours by area, size, aspect ratio, and candidate solidity
     valid_contours = []
     for cnt in contours:
         area = cv2.contourArea(cnt)
@@ -110,50 +138,103 @@ def build_grid(source, filename):
         if aspect_ratio < MINIMUM_ASPECT_RATIO or aspect_ratio > MAXIMUM_ASPECT_RATIO:
             continue
 
-        # Solidity check (from shape_detection.cpp): reject noisy/irregular contours.
+        # Solidity check: reject noisy/irregular contours.
         # A real sign is solid, not fragmented background noise.
-        hull = cv2.convexHull(cnt)
+        hull      = cv2.convexHull(cnt)
         hull_area = cv2.contourArea(hull)
-        solidity = (area / hull_area) if hull_area > 0 else 0
-        if solidity > 0.50:
+        solidity  = (area / hull_area) if hull_area > 0 else 0
+        if solidity > CANDIDATE_SOLIDITY:
             valid_contours.append(cnt)
 
-    # Initialize 6 panels
-    p1 = img.copy()                                      # Original
-    p2 = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)           # Blue Mask
-    p3 = black.copy()                                    # All Contours
-    p4 = black.copy()                                    # Largest Contour
-    p5 = black.copy()                                    # Filled Mask
-    p6 = black.copy()                                    # Segmented Sign
+    # 4. Initialise 6 panels
+    p1 = img.copy()                              # Original
+    p2 = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)  # Blue Mask
+    p3 = black.copy()                            # All Contours
+    p4 = black.copy()                            # Largest Contour (hull outline)
+    p5 = black.copy()                            # Filled Mask
+    p6 = black.copy()                            # Segmented Sign
 
     # Draw all valid contours in magenta on p3
     cv2.drawContours(p3, valid_contours, -1, (255, 0, 255), 2)
 
-    # 4. Find the largest valid blue contour
+    reason = []
+
+    # 5. Process the largest valid contour
     if len(valid_contours) > 0:
         detected = True
 
         largest_idx = 0
-        max_area = 0.0
+        max_area    = 0.0
         for i, cnt in enumerate(valid_contours):
             area = cv2.contourArea(cnt)
             if area > max_area:
-                max_area = area
+                max_area    = area
                 largest_idx = i
 
         # Use convex hull on the largest contour for cleaner segmentation
-        # (from shape_detection.cpp — fixes fragmented contours from white symbols)
-        hull = cv2.convexHull(valid_contours[largest_idx])
+        # (from shape_detection.cpp - fixes fragmented contours from white symbols)
+        hull     = cv2.convexHull(valid_contours[largest_idx])
+        hull_vec = [hull]
 
-        # Draw hull outline on p4 in white
-        cv2.drawContours(p4, [hull], -1, (255, 255, 255), 2)
+        cv2.drawContours(p4, hull_vec, -1, (255, 255, 255), 2)
+        cv2.drawContours(p5, hull_vec, -1, (255, 255, 255), cv2.FILLED)
 
-        # Create filled mask on p5 in white
-        cv2.drawContours(p5, [hull], -1, (255, 255, 255), cv2.FILLED)
-
-        # Segment sign using the filled mask
         filled_gray = cv2.cvtColor(p5, cv2.COLOR_BGR2GRAY)
         p6 = cv2.bitwise_and(img, img, mask=filled_gray)
+
+        # --- Gate 1: frame-edge and size checks ---
+        bx, by, bw, bh = cv2.boundingRect(valid_contours[largest_idx])
+        touches_edge = (bx <= 1 or by <= 1 or
+                        (bx + bw) >= PANEL_SIZE - 1 or
+                        (by + bh) >= PANEL_SIZE - 1)
+        too_large = max_area > (PANEL_SIZE * PANEL_SIZE * 0.85)
+
+        has_competitor = False
+        for i, cnt in enumerate(valid_contours):
+            if i == largest_idx:
+                continue
+            if cv2.contourArea(cnt) >= 0.60 * max_area:
+                has_competitor = True
+                break
+
+        # --- Gate 2: completeness checks ---
+        # These are what separate "the whole sign was extracted" from
+        # "a chunk of the sign was extracted". Without them a crescent left
+        # behind by glare passes as SUCCESS.
+        hull_area = cv2.contourArea(hull)
+        solidity  = (max_area / hull_area) if hull_area > 0.0 else 0.0
+
+        # Best-fit ellipse: stays near 1.0 for discs viewed head-on OR at an
+        # angle, so it tolerates perspective while still rejecting half-discs.
+        ellipse_fill = 0.0
+        if len(hull) >= 5:
+            fitted       = cv2.fitEllipse(hull)
+            ellipse_area = np.pi * 0.25 * fitted[1][0] * fitted[1][1]
+            if ellipse_area > 0.0:
+                ellipse_fill = hull_area / ellipse_area
+
+        # Min-area rectangle: only a genuinely rectangular sign approaches 1.0.
+        min_rect      = cv2.minAreaRect(hull)
+        min_rect_area = min_rect[1][0] * min_rect[1][1]
+        rect_fill     = (hull_area / min_rect_area) if min_rect_area > 0.0 else 0.0
+
+        is_solid    = solidity     >= SUCCESS_SOLIDITY
+        whole_shape = (ellipse_fill >= MINIMUM_ELLIPSE_FILL or
+                       rect_fill    >= MINIMUM_RECT_FILL)
+
+        if touches_edge:    reason.append("touches frame edge")
+        if too_large:       reason.append("region too large")
+        if has_competitor:  reason.append("competing contour")
+        if not is_solid:    reason.append("fragmented contour")
+        if not whole_shape: reason.append("partial shape")
+
+        success = (not touches_edge and not too_large and
+                   not has_competitor and is_solid and whole_shape)
+
+        if not success:
+            print(f"    metrics: solidity={solidity:.2f}"
+                  f" ellipseFill={ellipse_fill:.2f}"
+                  f" rectFill={rect_fill:.2f}")
 
     # 6. Add standard labels
     add_label(p1, "Original")
@@ -163,15 +244,19 @@ def build_grid(source, filename):
     add_label(p5, "Filled Mask")
     add_label(p6, "Segmented Sign")
 
-    # 8. Stack panels into 3x2 grid
-    top_row = np.hstack([p1, p2, p3])
+    # 7. Stack panels into 3x2 grid
+    top_row    = np.hstack([p1, p2, p3])
     bottom_row = np.hstack([p4, p5, p6])
-    grid = np.vstack([top_row, bottom_row])
+    grid       = np.vstack([top_row, bottom_row])
 
-    label = "Blue Sign Detected" if detected else "No Blue Sign Detected"
-    print(f"  [{filename}] {label}")
+    status = "SUCCESS" if success else "FAILED"
+    line   = (f"[{filename}] "
+              f"{'Blue Sign Detected' if detected else 'No Blue Sign Detected'} - {status}")
+    if not success and reason:
+        line += f" ({', '.join(reason)})"
+    print(line)
 
-    return grid, detected
+    return grid, detected, success
 
 
 def main():
@@ -180,17 +265,11 @@ def main():
     print(" MYSignVoice Preliminary Work")
     print("=" * 40)
 
-    # Parse arguments
-    show_steps = "--show" in sys.argv
-    if show_steps:
-        print("Mode: Step-by-step visualization enabled")
-
     # Find the input path: use explicit argument or auto-discover
     input_path = ""
     for arg in sys.argv[1:]:
-        if arg != "--show":
-            input_path = arg
-            break
+        input_path = arg
+        break
 
     if not input_path:
         input_path = find_default_input_path()
@@ -224,13 +303,9 @@ def main():
         print(f"No supported image files found in: {input_path}")
         sys.exit(1)
 
-    # Also save grids to an output folder (for the report)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(script_dir, "output")
-    os.makedirs(output_dir, exist_ok=True)
-
-    total_images = 0
-    total_detected = 0
+    total_images     = 0
+    total_detected   = 0
+    total_successful = 0
 
     window_name = "Blue Sign Segmentation"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
@@ -245,15 +320,10 @@ def main():
         total_images += 1
         filename = os.path.basename(image_path)
 
-        grid, detected = build_grid(source, filename)
-        if detected:
-            total_detected += 1
+        grid, detected, success = build_grid(source, filename)
+        if detected: total_detected   += 1
+        if success:  total_successful += 1
 
-        # Save grid to output folder (for report screenshots)
-        out_path = os.path.join(output_dir, f"Grid_{filename}")
-        cv2.imwrite(out_path, grid)
-
-        # Always show live display
         cv2.imshow(window_name, grid)
         key = cv2.waitKey(0)
         if key == 27:  # ESC quits early
@@ -263,15 +333,17 @@ def main():
     cv2.destroyAllWindows()
 
     # Print summary
-    detection_rate = (100.0 * total_detected / total_images) if total_images > 0 else 0.0
+    detection_rate = (100.0 * total_detected   / total_images) if total_images > 0 else 0.0
+    success_rate   = (100.0 * total_successful / total_images) if total_images > 0 else 0.0
 
     print(f"\n{'=' * 40}")
     print(" BLUE SIGN SEGMENTATION SUMMARY")
     print(f"{'=' * 40}")
-    print(f" Total images processed:    {total_images}")
-    print(f" Total blue signs detected: {total_detected}")
-    print(f" Detection Rate:            {detection_rate:.1f}%")
-    print(f" Output folder location:    {output_dir}")
+    print(f" Total images processed:         {total_images}")
+    print(f" Total blue signs detected:      {total_detected}")
+    print(f" Total successful segmentations: {total_successful}")
+    print(f" Detection Rate: {detection_rate:.1f}%")
+    print(f" Success Rate:   {success_rate:.1f}%")
     print(f"{'=' * 40}")
 
 

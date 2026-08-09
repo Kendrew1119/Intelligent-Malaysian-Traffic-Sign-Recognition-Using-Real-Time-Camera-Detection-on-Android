@@ -20,12 +20,19 @@
 // Contour, Filled Mask, Segmented Sign) live in a window for each image.
 // Nothing is written to disk. Press any key to advance to the next image,
 // or ESC to quit early.
+//
+// A segmentation counts as SUCCESS only when the extracted region looks like a
+// COMPLETE sign: it must sit inside the frame, have no rival contour, and fill
+// its own best-fit shape (ellipse for circular signs, rectangle for rectangular
+// ones). Partial captures - a crescent or half-disc left behind by glare - are
+// reported as FAILED with the reason printed alongside.
 
 #include <opencv2/opencv.hpp>
 
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -38,6 +45,22 @@ namespace {
     constexpr double kMinimumAspectRatio = 0.45;
     constexpr double kMaximumAspectRatio = 2.25;
     constexpr int kPanelSize = 300;
+
+    // --- Success (completeness) thresholds -------------------------------
+    // Loose gate used only to keep a contour in the candidate list.
+    constexpr double kCandidateSolidity = 0.50;
+    // Strict gates applied when deciding SUCCESS vs FAILED.
+    // Solidity: how much of its own convex hull the raw contour occupies.
+    // A whole disc scores ~0.95 (RETR_EXTERNAL includes the white pictogram);
+    // a crescent or C-shape left by a partial mask scores far lower.
+    constexpr double kSuccessSolidity = 0.80;
+    // Ellipse fill: hull area / best-fit ellipse area. ~1.0 for a full disc,
+    // and stays ~1.0 for a disc seen at an angle. A half-disc drops well below.
+    constexpr double kMinimumEllipseFill = 0.85;
+    // Rect fill: hull area / min-area-rectangle area. ~1.0 for rectangular
+    // signs, 0.785 for any circle/ellipse/half-disc - so it only ever rescues
+    // genuinely rectangular signs.
+    constexpr double kMinimumRectFill = 0.90;
 
     bool isImageFile(const fs::path& path) {
         std::string extension = path.extension().string();
@@ -108,7 +131,7 @@ namespace {
 
         // Blue HSV range matching Member 4's tested values
         // H=[85,135]: captures full range of Malaysian blue signs
-        // S=[80,255]: balanced — catches most signs without too much sky noise
+        // S=[80,255]: balanced - catches most signs without too much sky noise
         // V=[40,255]: catches shaded/darker signs
         cv::Mat mask;
         cv::inRange(hsv, cv::Scalar(85, 80, 40), cv::Scalar(135, 255, 255), mask);
@@ -153,7 +176,7 @@ namespace {
             cv::convexHull(contour, hull);
             const double hullArea = cv::contourArea(hull);
             const double solidity = (hullArea > 0) ? (area / hullArea) : 0;
-            if (solidity > 0.50) {
+            if (solidity > kCandidateSolidity) {
                 validContours.push_back(contour);
             }
         }
@@ -166,6 +189,12 @@ namespace {
         cv::Mat p6 = black.clone();                                   // Segmented Sign
 
         cv::drawContours(p3, validContours, -1, cv::Scalar(255, 0, 255), 2);
+
+        std::string reason;
+        const auto addReason = [&reason](const std::string& text) {
+            if (!reason.empty()) reason += ", ";
+            reason += text;
+            };
 
         if (!validContours.empty()) {
             detected = true;
@@ -181,7 +210,7 @@ namespace {
             }
 
             // Use convex hull on the largest contour for cleaner segmentation
-            // (from shape_detection.cpp — fixes fragmented contours from white symbols)
+            // (from shape_detection.cpp - fixes fragmented contours from white symbols)
             std::vector<cv::Point> hull;
             cv::convexHull(validContours[largestIdx], hull);
             std::vector<std::vector<cv::Point>> hullVec = { hull };
@@ -210,7 +239,47 @@ namespace {
                 }
             }
 
-            success = !touchesEdge && !tooLarge && !hasCompetitor;
+            // ---- Completeness checks --------------------------------------
+            // These are what separate "the whole sign was extracted" from
+            // "a chunk of the sign was extracted". Without them a crescent left
+            // behind by glare passes as SUCCESS.
+            const double hullArea = cv::contourArea(hull);
+            const double solidity = (hullArea > 0.0) ? (maxArea / hullArea) : 0.0;
+
+            // Best-fit ellipse: stays near 1.0 for discs viewed head-on OR at an
+            // angle, so it tolerates perspective while still rejecting half-discs.
+            double ellipseFill = 0.0;
+            if (hull.size() >= 5) {
+                const cv::RotatedRect fitted = cv::fitEllipse(hull);
+                const double ellipseArea = CV_PI * 0.25 *
+                    static_cast<double>(fitted.size.width) * fitted.size.height;
+                if (ellipseArea > 0.0) ellipseFill = hullArea / ellipseArea;
+            }
+
+            // Min-area rectangle: only a genuinely rectangular sign approaches 1.0.
+            const cv::RotatedRect minRect = cv::minAreaRect(hull);
+            const double minRectArea =
+                static_cast<double>(minRect.size.width) * minRect.size.height;
+            const double rectFill = (minRectArea > 0.0) ? (hullArea / minRectArea) : 0.0;
+
+            const bool isSolid = solidity >= kSuccessSolidity;
+            const bool wholeShape = (ellipseFill >= kMinimumEllipseFill) ||
+                (rectFill >= kMinimumRectFill);
+
+            if (touchesEdge)    addReason("touches frame edge");
+            if (tooLarge)       addReason("region too large");
+            if (hasCompetitor)  addReason("competing contour");
+            if (!isSolid)       addReason("fragmented contour");
+            if (!wholeShape)    addReason("partial shape");
+
+            success = !touchesEdge && !tooLarge && !hasCompetitor && isSolid && wholeShape;
+
+            if (!success) {
+                std::cout << std::fixed << std::setprecision(2)
+                    << "    metrics: solidity=" << solidity
+                    << " ellipseFill=" << ellipseFill
+                    << " rectFill=" << rectFill << '\n';
+            }
         }
 
         addLabel(p1, "Original");
@@ -227,7 +296,11 @@ namespace {
 
         std::cout << "[" << filename << "] "
             << (detected ? "Blue Sign Detected - " : "No Blue Sign Detected - ")
-            << (success ? "SUCCESS" : "FAILED") << '\n';
+            << (success ? "SUCCESS" : "FAILED");
+        if (!success && !reason.empty()) {
+            std::cout << " (" << reason << ")";
+        }
+        std::cout << '\n';
         return grid;
     }
 
