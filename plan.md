@@ -1,6 +1,6 @@
 # UCCC2513 Mini Project — Full 14-Week Plan
 
-# 🦯 Intelligent Malaysian Traffic Sign Recognition for Visually Impaired Pedestrians Using Real-Time Camera Detection on Android
+# 🚦 Intelligent Malaysian Traffic Sign Recognition Using Real-Time Web-Based Detection
 
 ---
 
@@ -9,18 +9,19 @@
 **Course**: UCCC2513 Mini Project
 **Team Size**: 4 members
 **Duration**: 14 weeks
-**Skill Profile**: C++ strong, Android & deep learning are new (plan is written for rookies in Android/ML)
+**Skill Profile**: C++ strong, web development & deep learning are new (plan is written for rookies in web dev/ML)
 **Assessments**:
 - Assignment (Proposal Report + Presentation): **30 marks** — due ~Week 7
 - Class Participation + Activities: **10 marks** — ongoing
 - Project Work (Final Report + Presentation): **50 marks** — due ~Week 11–13
 
 **Testing Environment**:
-- **Primary**: Android phone (real device testing with camera)
-- **Demo/Review on PC**: Use Android Studio Emulator with webcam passthrough, or screen-mirror the phone to PC via `scrcpy` (free tool) for presentation demos
+- **Primary**: Chrome, Firefox or Edge on the target desktop/laptop
+- **Demo/Review on PC**: Open the server-side web app, use the laptop webcam or upload test images/videos
+- **Out of scope**: native Android/iOS/mobile application deployment
 
 **GPU for Training**:
-- **No local GPU needed** — use **Google Colab** (free tier provides NVIDIA T4 GPU). Training YOLOv8-nano on Colab takes ~30–60 min for 100 epochs on a small dataset. See the [Google Colab Training Guide](#-google-colab-training-guide) section below.
+- **No local training GPU needed** — use **Google Colab** for the YOLO26s baseline. Record actual training duration rather than assuming a fixed time.
 
 ---
 
@@ -30,70 +31,72 @@
 
 | # | Title | Why It Works |
 |---|-------|-------------|
-| 1 | **Intelligent Malaysian Traffic Sign Recognition for Visually Impaired Pedestrians Using Real-Time Camera Detection on Android** | Unique angle — accessibility for blind users, innovative, strong social impact, justifies camera + mobile |
-| 2 | **Real-Time Malaysian Traffic Sign Detection and Audio Feedback System for Visually Impaired Users Using Edge AI on Android** | Emphasizes real-time + audio + edge AI |
-| 3 | **MYSignVoice: A Camera-Based Malaysian Road Sign Detection and Text-to-Speech System for Visually Impaired Pedestrians** | Branded name (MYSignVoice), clearly describes what the app does |
+| 1 | **Intelligent Malaysian Traffic Sign Recognition Using Real-Time Web-Based Detection** | Clear, direct — web-based real-time detection, strong technical focus |
+| 2 | **Real-Time Malaysian Traffic Sign Detection and Classification System Using YOLO26 on a Web Platform** | Emphasizes real-time + YOLO + web platform |
+| 3 | **MYSignWeb: A Web-Based Malaysian Road Sign Detection System for Driving Assistance** | Branded name (MYSignWeb), clearly describes what the system does |
 
-> **Recommendation**: Title **1** or **3**. Title 1 is more formal/academic. Title 3 has a catchy app name.
+> **Recommendation**: Title **1** or **3**. Title 1 is more formal/academic. Title 3 has a catchy brand name.
 
 ---
 
-## 💡 The App — Blind-Friendly Road Sign Audio Assistant
+## 💡 The System — Real-Time Web-Based Traffic Sign Detector
 
 ### Concept
 
-An Android app designed for **visually impaired pedestrians** that uses the phone camera to continuously scan the environment, detect Malaysian road signs, and **speak aloud** the sign's meaning using Text-to-Speech (TTS). The app runs with the phone held in hand or worn around the neck using a lanyard.
+A server-side web application that uses a laptop-camera feed or uploaded video/image to detect and classify Malaysian road signs. A Python backend (Flask/FastAPI) runs YOLO26s at a 640-pixel baseline, and a desktop/laptop browser displays bounding boxes, class labels, confidence scores and detection history. No native mobile app is part of the active system.
 
-### Why This Idea Wins the "Funding Competition"
+### Why This Idea Works
 
-The assignment frames the proposal as competing for RM 1,000,000 funding. This idea wins because:
-- **Social impact** — improves road safety for 250,000+ visually impaired Malaysians (Department of Social Welfare statistics)
-- **Clear innovation** — no existing Malaysian road sign app targets the visually impaired
+The assignment frames the proposal as competing for RM 1,000,000 funding. This idea works because:
+- **Practical impact** — improves road safety awareness for all Malaysian drivers
+- **Clear innovation** — real-time web-based Malaysian road sign detection system
 - **Naturally justifies every technical choice**:
-  - **Why camera?** — Blind users can't upload images or browse a gallery
-  - **Why mobile app not web?** — Must be portable, works outdoors, hands-free
-  - **Why real-time?** — Blind users need instant audio feedback, not batch processing
-  - **Why Malaysian signs?** — Localized accessibility tool with genuine social need
-  - **Why C++ + YOLO?** — Performance-critical real-time inference on mobile
+  - **Why camera?** — Real-time detection from live video feeds
+  - **Why web app?** — Centralized server inference, no client installation, easy deployment and scaling
+  - **Why real-time?** — Instant feedback for driving assistance scenarios
+  - **Why Malaysian signs?** — Localized detection tool with genuine practical need
+  - **Why C++ + YOLO?** — Performance-critical real-time inference, C++ for preliminary OpenCV work
 
 ### Complete Feature List
 
 | Feature | Description | Technical Component |
 |---------|-------------|-------------------|
-| **Real-time camera detection** | Continuous scanning at 15–30 FPS, no tap needed | CameraX + YOLOv8n + ncnn |
-| **Text-to-Speech output** | Speaks sign name + meaning: *"Warning: sharp bend ahead"* | Android TTS API |
-| **Vibration alerts** | Phone vibrates for danger/warning signs (red triangles, stop signs) | Android Vibrator API |
-| **Multilingual TTS** | Supports Bahasa Melayu and English, switchable in settings | Android TTS language packs |
-| **High-contrast accessible UI** | Extra-large buttons, dark background, minimal clutter, designed for low/no vision | Jetpack Compose with accessibility guidelines |
-| **Voice commands** | "Start" / "Stop" / "Change language" via speech recognition | Android SpeechRecognizer API |
-| **Detection suppression** | Won't repeat the same sign if user is stationary (cooldown timer per sign class) | Custom logic: track last detected class + timestamp |
-| **Distance estimation** | Audio cue: "near" / "medium" / "far" based on bounding box size relative to frame | Bounding box area ratio calculation |
-| **Sign meaning database** | JSON database mapping 50+ sign IDs → name → full description in BM + EN | SQLite or JSON asset file |
-| **Detection history log** | Saves last 50 detections with timestamp, sign name, confidence score | Room database (Android) |
-| **Confidence threshold slider** | Adjustable sensitivity (default 0.5, range 0.3–0.9) | Settings screen |
-| **PC demo mode** | Screen mirror via scrcpy for presentation; also works on Android Studio emulator | scrcpy / emulator with webcam |
+| **Real-time webcam detection** | Live detection from a laptop browser webcam | WebRTC + WebSocket + YOLO26s |
+| **Image/video upload** | Upload a photo or video for batch detection | HTTP upload + YOLO26s |
+| **Bounding box overlay** | Draw detected sign bounding boxes on the video/image | HTML Canvas / JavaScript |
+| **Class labels + confidence** | Display sign name and confidence percentage | JSON response from backend |
+| **Detection history log** | Scrollable list of recent detections with timestamps | Frontend state management |
+| **Confidence threshold slider** | Adjustable sensitivity (default 0.5, range 0.3–0.9) | Settings panel |
+| **Sign meaning database** | JSON database mapping 49 sign IDs → name → description | Server-side JSON file |
+| **Export results** | Download detection results as CSV or annotated images | Backend export endpoint |
+| **Desktop web design** | Works in Chrome, Firefox and Edge on the target desktop/laptop | CSS web layout; no native mobile app |
+| **Multi-sign detection** | Detect multiple signs in a single frame | YOLO multi-object output |
 
-### App Screen Flow
+### Web App Screen Flow
 
 ```
-[Splash Screen] → [Main Camera Screen] → [Settings]
-                         ↓                      ↓
-                  [Detection Overlay]    [Language Toggle]
-                  [TTS Speaking]         [Confidence Slider]
-                  [Vibration Alert]      [Voice Command Toggle]
-                         ↓
-                  [History Screen]
+[Landing Page] → [Detection Dashboard] → [Settings Panel]
+                        ↓                       ↓
+                 [Webcam Live View]      [Confidence Slider]
+                 [Upload Image/Video]    [Model Info]
+                 [Bounding Box Overlay]
+                        ↓
+                 [Detection History]
+                 [Export Results]
 ```
 
-### Malaysian Road Signs to Support (Minimum 50 Classes)
+### Malaysian Road Signs to Support (Minimum 49 Classes)
 
-| Category | Color | Examples | Count |
-|----------|-------|----------|-------|
-| **Prohibitory** | Red border, white center | Speed limit (5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 110), No entry, No U-turn, No overtaking, No parking, No stopping | ~20 |
-| **Warning** | Yellow/amber, black symbol | Sharp bend, curve, junction, roundabout, speed bump, pedestrian crossing, school zone, animal crossing, slippery road | ~15 |
-| **Mandatory** | Blue, white symbol | Turn left, turn right, go straight, roundabout direction, one-way, keep left | ~10 |
-| **Information** | Blue rectangle | Highway signs, directional signs, facility signs | ~5+ |
-| **Stop / Special** | Red octagon / others | Stop sign, give way (inverted triangle) | ~3 |
+The canonical zero-based IDs and 49 hyphenated names are in `dataset/data.yaml`.
+Do not infer or add classes from generic traffic-sign lists. Corrected class ID 33
+is `pass-obstacle-on-either-side`.
+
+| Inventory group | Examples from the locked list | Exact class count |
+|---|---|---:|
+| **Blue signs** | straight-only, left/right directions, pass-right, roundabout, cars-only, use-horn, bicycle-path | 12 |
+| **Red signs** | seven supported speed limits, prohibitions, stop-sign, no-entry, give-way, stop-for-inspection | 21 |
+| **Yellow signs** | traffic-light/general warnings, crossings, turns, descent, construction, slippery road, railway warnings | 16 |
+| **Total** | See `dataset/data.yaml` for all exact names and IDs | **49** |
 
 ---
 
@@ -103,299 +106,67 @@ The assignment frames the proposal as competing for RM 1,000,000 funding. This i
 
 | Component | Technology | Why | Beginner Tip |
 |-----------|-----------|-----|-------------|
-| **Core Logic** | **C++17** | Required by course. Used for image processing + ML inference | You already know this well |
-| **Android App** | **Kotlin** | Official Android language, interops with C++ via JNI | Similar to Java but more concise |
-| **Camera** | **CameraX (Android Jetpack)** | Google's modern camera API. Handles rotation, lifecycle, focus automatically | Much easier than old Camera2 API |
-| **UI Framework** | **Jetpack Compose** | Declarative UI — describe what you want, not how to build it | Like writing HTML but in Kotlin |
-| **Build System** | **CMake + Gradle** | CMake for C++ native lib, Gradle for Android app | Android Studio handles most of this |
+| **Core Logic** | **C++17** | Required by course. Used for preliminary image processing | You already know this well |
+| **Web Backend** | **Python + Flask/FastAPI** | Serves YOLO inference API, handles uploads and WebSocket streams | Flask is very beginner-friendly |
+| **Web Frontend** | **HTML + CSS + JavaScript** | Camera access, display results, interactive UI | Standard web technologies |
+| **Real-time Streaming** | **WebSocket (Flask-SocketIO)** | Stream webcam frames to server and return results in real time | Like a live chat but with image data |
+| **ML Inference** | **Ultralytics YOLO26s** | Default end-to-end, NMS-free server inference at 640 | Validate `best.pt` before export |
+| **Intel CPU deployment** | **OpenVINO** | Optimize and serve the validated YOLO26 export on Intel hardware | Compare export accuracy and latency |
+| **Image Processing** | **OpenCV (Python)** | Resize, convert, draw bounding boxes server-side | Same OpenCV you used in C++, but in Python |
 
-### Camera Compatibility
-
-CameraX works on **any Android phone running Android 5.0 (API 21) or above** — this covers 99%+ of all Android phones in use. It automatically handles:
-- Front/back camera switching
-- Auto-focus and auto-exposure
-- Image rotation correction
-- Frame capture for ML inference (via `ImageAnalysis` use case)
-
-For this project, we use the **back camera** in `ImageAnalysis` mode, which delivers frames as `ImageProxy` objects that we convert to `Bitmap` → `Mat` (OpenCV) → feed to YOLO.
-
----
-
-## 🤖 Why YOLOv8-nano — Deep Comparison
-
-### YOLO Version Comparison
-
-| Version | Year | Architecture | Speed (ms) on Mobile | mAP (COCO) | Model Size | Good for Mobile? |
-|---------|------|-------------|---------------------|------------|------------|-----------------|
-| YOLOv5-nano | 2021 | CSPDarknet + PANet | ~25ms | 28.0% | 3.9 MB | ✅ Yes |
-| YOLOv7-tiny | 2022 | E-ELAN | ~30ms | 38.7% | 12.1 MB | ⚠️ OK but larger |
-| **YOLOv8-nano** | **2023** | **C2f + SPPF + Decoupled Head** | **~20ms** | **37.3%** | **6.2 MB** | **✅ Best choice** |
-| YOLOv8-small | 2023 | Same but wider | ~35ms | 44.9% | 22.5 MB | ⚠️ Too big for some phones |
-| YOLOv8-medium | 2023 | Same but deeper | ~80ms | 50.2% | 52.0 MB | ❌ Too slow for real-time |
-| YOLOv9-tiny | 2024 | GELAN + PGI | ~22ms | 38.3% | 7.7 MB | ✅ Yes but newer, less community support |
-| YOLOv10-nano | 2024 | NMS-free design | ~18ms | 38.5% | 5.4 MB | ✅ Yes but very new, ncnn support may be limited |
-
-### YOLOv8 vs YOLOv8-nano — What's the Difference?
-
-YOLOv8 is a **family** of models, not a single model. The "nano" is the **smallest variant**:
-
-```
-YOLOv8 Family (from smallest to largest):
-┌─────────────┬────────┬──────────┬───────────┬─────────────┐
-│   Variant   │ Params │   Size   │ Speed(ms) │    Use For  │
-├─────────────┼────────┼──────────┼───────────┼─────────────┤
-│ YOLOv8n     │  3.2M  │  6.2 MB  │   ~20ms   │ 📱 Mobile   │  ← WE USE THIS
-│ YOLOv8s     │  11.2M │  22.5 MB │   ~35ms   │ 💻 Edge     │
-│ YOLOv8m     │  25.9M │  52.0 MB │   ~80ms   │ 🖥️ Desktop  │
-│ YOLOv8l     │  43.7M │  87.7 MB │  ~120ms   │ 🖥️ Server   │
-│ YOLOv8x     │  68.2M │ 136.7 MB │  ~160ms   │ 🏢 Cloud    │
-└─────────────┴────────┴──────────┴───────────┴─────────────┘
-```
-
-**Key differences**:
-- **n (nano)**: Fewer convolutional layers, narrower channels (e.g., 64 → 128 → 256 instead of 256 → 512 → 1024). Fastest but lowest accuracy.
-- **s/m/l/x**: Progressively deeper and wider networks. More accurate but slower.
-- All share the **same architecture design** (C2f blocks, SPPF, decoupled detection head), just scaled differently.
-
-### Why YOLOv8-nano is Perfect for This Project
-
-1. **6.2 MB model file** — fits easily in an Android APK (the whole app stays under 50 MB)
-2. **~20ms inference** on a mid-range phone — gives us 50 FPS, far exceeding the 2-second requirement
-3. **37.3% mAP on COCO** — for our focused task (just road signs, not 80 COCO classes), fine-tuned accuracy will be much higher (typically 85–95% mAP)
-4. **Excellent ncnn support** — Tencent maintains official YOLOv8 examples for ncnn
-5. **Ultralytics ecosystem** — easiest training framework: one command to train, one command to export
-6. **Huge community** — thousands of tutorials, Stack Overflow answers, GitHub issues
-
-### What Camera Resolution Does YOLOv8-nano Expect?
-
-YOLOv8-nano takes **640×640 pixel** input by default. Here's how the pipeline works:
-
-```
-Phone Camera (1920×1080) → Resize to 640×640 → YOLOv8-nano → Bounding boxes → Scale back to 1920×1080 for display
-```
-
-You **don't** need a 640×640 camera. CameraX captures at whatever resolution is available (usually 1080p or 720p), and our code resizes the frame before feeding it to YOLO. The resize is handled by OpenCV's `cv::resize()` in C++.
-
----
-
-## 🔗 ncnn Integration — Step-by-Step Guide for Beginners
-
-This is the most complex part of the project. Follow these steps carefully.
-
-### What is ncnn?
-
-ncnn is a **C++ neural network inference framework** by Tencent. Think of it as: "a C++ library that can load a trained AI model and run predictions." It's:
-- Written in pure C++ (no Python, no Java dependency)
-- Designed for mobile (Android/iOS)
-- Very fast on ARM processors
-- No need for GPU on the phone — runs on CPU efficiently
-
-### Architecture Overview
+### Web Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                  Android App (Kotlin)                │
+│              Web Browser (Frontend)                  │
 │                                                     │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────┐ │
-│  │  CameraX    │  │     UI       │  │    TTS     │ │
-│  │  (frames)   │  │  (display)   │  │  (speech)  │ │
+│  │  Webcam      │  │  Detection   │  │  History   │ │
+│  │  (WebRTC)    │  │  Overlay     │  │  Log       │ │
 │  └──────┬──────┘  └──────▲───────┘  └─────▲──────┘ │
 │         │                │                │         │
 │         ▼                │                │         │
 │  ┌──────────────────────────────────────────────┐   │
-│  │              JNI Bridge (Kotlin ↔ C++)       │   │
+│  │          WebSocket / HTTP Connection          │   │
 │  └──────────────────────┬───────────────────────┘   │
-│                         │                           │
-│  ┌──────────────────────▼───────────────────────┐   │
-│  │              C++ Native Library               │   │
-│  │                                               │   │
-│  │  ┌──────────┐  ┌──────────┐  ┌────────────┐ │   │
-│  │  │  OpenCV   │  │   ncnn   │  │   Post-    │ │   │
-│  │  │ (resize,  │  │  (YOLO   │  │ processing │ │   │
-│  │  │  convert) │  │ inference│  │  (NMS,     │ │   │
-│  │  │           │  │          │  │  labels)   │ │   │
-│  │  └──────────┘  └──────────┘  └────────────┘ │   │
-│  └───────────────────────────────────────────────┘   │
+└─────────────────────────┼───────────────────────────┘
+                          │
+┌─────────────────────────┼───────────────────────────┐
+│              Python Backend (Flask/FastAPI)           │
+│                                                     │
+│  ┌──────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │  OpenCV   │  │  YOLO26s     │  │   Sign       │  │
+│  │ (resize,  │  │  (Ultralytics│  │  Database    │  │
+│  │  convert) │  │   inference) │  │  (JSON)      │  │
+│  └──────────┘  └──────────────┘  └──────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
 
-### Step-by-Step Integration
+---
 
-#### Step 1: Train YOLOv8-nano (Python, on Google Colab)
+## 🤖 YOLO26 Server Model Decision
 
-```python
-# In Google Colab
-!pip install ultralytics
+### Controlled model ladder
 
-from ultralytics import YOLO
+| Candidate | Role | When it is accepted |
+|---|---|---|
+| **YOLO26s** | Default 640 baseline | Passes held-out quality and target-server latency gates |
+| **YOLO26n** | Intel CPU latency fallback | YOLO26s misses latency, while YOLO26n still passes every minimum quality gate |
+| **YOLO26m** | Accuracy challenger | Adequate balanced original data and a GPU server exist, and measured quality improves without breaking latency/false-positive gates |
 
-# Load pretrained YOLOv8-nano
-model = YOLO('yolov8n.pt')
+YOLO26's default one-to-one head produces end-to-end detections without external
+detector NMS. Keep that default for training validation, prediction and export.
+The safe-hybrid pipeline may still use class-aware IoU to combine full-frame and
+ROI results; that is application-level cross-pass deduplication, not detector NMS.
 
-# Train on your Malaysian road sign dataset
-model.train(
-    data='road_signs.yaml',  # Your dataset config
-    epochs=100,
-    imgsz=640,
-    batch=16,
-    name='malaysian_signs'
-)
+Start all controlled model comparisons at `imgsz=640`. On an Intel CPU server,
+export the selected model to OpenVINO and verify accuracy parity and end-to-end
+latency. The active workflow is server-side web deployment; the Android guide and
+ncnn converter are archival and not part of the build.
 
-# Export to ONNX format
-model.export(format='onnx', imgsz=640, simplify=True)
-```
-
-#### Step 2: Convert ONNX to ncnn format (on PC)
-
-```bash
-# Install ncnn tools (or use prebuilt binaries from ncnn releases)
-# Download from: https://github.com/Tencent/ncnn/releases
-
-# Convert ONNX to ncnn
-./onnx2ncnn best.onnx yolov8n_signs.param yolov8n_signs.bin
-
-# Optimize the model (reduces size, speeds up inference)
-./ncnnoptimize yolov8n_signs.param yolov8n_signs.bin yolov8n_signs_opt.param yolov8n_signs_opt.bin 65536
-```
-
-This produces two files:
-- `yolov8n_signs_opt.param` — model architecture (text file, ~50 KB)
-- `yolov8n_signs_opt.bin` — model weights (binary file, ~6 MB)
-
-#### Step 3: Add ncnn to Android project
-
-In your Android project's `CMakeLists.txt`:
-
-```cmake
-cmake_minimum_required(VERSION 3.22)
-project(signdetector)
-
-# Find ncnn package (prebuilt for Android)
-set(ncnn_DIR ${CMAKE_SOURCE_DIR}/ncnn-android-lib/${ANDROID_ABI}/lib/cmake/ncnn)
-find_package(ncnn REQUIRED)
-
-# Find OpenCV
-set(OpenCV_DIR ${CMAKE_SOURCE_DIR}/opencv-android-sdk/sdk/native/jni)
-find_package(OpenCV REQUIRED)
-
-# Your C++ source files
-add_library(signdetector SHARED
-    src/main/cpp/sign_detector.cpp
-    src/main/cpp/jni_bridge.cpp
-)
-
-# Link libraries
-target_link_libraries(signdetector ncnn ${OpenCV_LIBS} android log)
-```
-
-#### Step 4: Write C++ inference code
-
-```cpp
-// sign_detector.cpp — simplified example
-#include <ncnn/net.h>
-#include <opencv2/opencv.hpp>
-
-class SignDetector {
-public:
-    ncnn::Net net;
-    
-    bool loadModel(const char* paramPath, const char* binPath) {
-        net.opt.use_vulkan_compute = false;  // CPU only, simpler
-        net.opt.num_threads = 4;             // Use 4 CPU cores
-        net.load_param(paramPath);
-        net.load_model(binPath);
-        return true;
-    }
-    
-    std::vector<Detection> detect(cv::Mat& frame) {
-        // 1. Convert BGR to RGB and resize to 640x640
-        cv::Mat resized;
-        cv::resize(frame, resized, cv::Size(640, 640));
-        
-        // 2. Create ncnn input (normalize pixels to 0-1)
-        ncnn::Mat input = ncnn::Mat::from_pixels(
-            resized.data, ncnn::Mat::PIXEL_RGB, 640, 640);
-        const float norm[3] = {1/255.f, 1/255.f, 1/255.f};
-        const float mean[3] = {0.f, 0.f, 0.f};
-        input.substract_mean_normalize(mean, norm);
-        
-        // 3. Run inference
-        ncnn::Extractor ex = net.create_extractor();
-        ex.input("in0", input);
-        ncnn::Mat output;
-        ex.extract("out0", output);
-        
-        // 4. Parse output into detections
-        // (parse bounding boxes, class IDs, confidence scores)
-        // ... post-processing code here ...
-        
-        return detections;
-    }
-};
-```
-
-#### Step 5: Write JNI bridge
-
-```cpp
-// jni_bridge.cpp
-#include <jni.h>
-#include "sign_detector.h"
-
-static SignDetector* detector = nullptr;
-
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_myapp_signdetector_NativeLib_initModel(
-    JNIEnv* env, jobject, jstring paramPath, jstring binPath) {
-    
-    detector = new SignDetector();
-    const char* param = env->GetStringUTFChars(paramPath, nullptr);
-    const char* bin = env->GetStringUTFChars(binPath, nullptr);
-    bool ok = detector->loadModel(param, bin);
-    env->ReleaseStringUTFChars(paramPath, param);
-    env->ReleaseStringUTFChars(binPath, bin);
-    return ok;
-}
-
-extern "C" JNIEXPORT jobjectArray JNICALL
-Java_com_myapp_signdetector_NativeLib_detect(
-    JNIEnv* env, jobject, jlong framePtr) {
-    
-    cv::Mat* frame = reinterpret_cast<cv::Mat*>(framePtr);
-    auto results = detector->detect(*frame);
-    // Convert results to Java array and return
-    // ...
-}
-```
-
-#### Step 6: Call from Kotlin
-
-```kotlin
-// NativeLib.kt
-class NativeLib {
-    companion object {
-        init { System.loadLibrary("signdetector") }
-    }
-    external fun initModel(paramPath: String, binPath: String): Boolean
-    external fun detect(framePtr: Long): Array<Detection>
-}
-```
-
-### Where to Get Pre-built ncnn for Android
-
-Download the latest Android prebuilt from:
-**https://github.com/Tencent/ncnn/releases**
-
-Look for: `ncnn-YYYYMMDD-android-vulkan.zip`
-
-Extract and place in your project's `app/src/main/cpp/ncnn-android-lib/` directory.
-
-### Fallback: If ncnn is Too Complex
-
-If the team struggles with ncnn integration, use **TensorFlow Lite (TFLite)** instead:
-- Also supports C++ API
-- Slightly slower than ncnn but has more tutorials
-- Export: `model.export(format='tflite')` — no ONNX step needed
-- Android integration is well-documented by Google
+Official references: [YOLO26](https://docs.ultralytics.com/models/yolo26/),
+[end-to-end detection](https://docs.ultralytics.com/guides/end2end-detection/), and
+[OpenVINO](https://docs.ultralytics.com/integrations/openvino/).
 
 ---
 
@@ -412,45 +183,27 @@ Since the team has no local GPU, use Google Colab (free).
 5. Run:
 
 ```python
-# Cell 1: Install
-!pip install ultralytics
+# Cell 1: install the tested dependency range.
+!pip install -q "ultralytics>=8.4.90,<9" roboflow pyyaml openvino onnx onnxruntime
 
-# Cell 2: Mount Google Drive (to save model)
+# Cell 2: mount Drive so the complete run survives a Colab reset.
 from google.colab import drive
 drive.mount('/content/drive')
 
-# Cell 3: Upload dataset to Colab or use from Drive
-# Your dataset structure should be:
-# /content/dataset/
-#   ├── train/
-#   │   ├── images/
-#   │   └── labels/
-#   ├── val/
-#   │   ├── images/
-#   │   └── labels/
-#   └── data.yaml
-
-# Cell 4: Train
-from ultralytics import YOLO
-model = YOLO('yolov8n.pt')  # nano variant
-results = model.train(
-    data='/content/dataset/data.yaml',
-    epochs=100,
-    imgsz=640,
-    batch=16,
-    patience=20,       # Early stopping if no improvement for 20 epochs
-    project='/content/drive/MyDrive/sign_model',
-    name='run1'
-)
-
-# Cell 5: Export to ONNX
-model = YOLO('/content/drive/MyDrive/sign_model/run1/weights/best.pt')
-model.export(format='onnx', imgsz=640, simplify=True)
-
-# Model saved at: /content/drive/MyDrive/sign_model/run1/weights/best.onnx
+# Cell 3: after cloning/uploading this repository, run the canonical script.
+# Store ROBOFLOW_API_KEY in Colab Secrets/environment first.
+%cd /content/miniproject/training
+!python train_colab.py \
+  --workspace "your-workspace" \
+  --project "mysignvoice-49-signs" \
+  --version 1 \
+  --model yolo26s.pt \
+  --imgsz 640 \
+  --epochs 150 \
+  --batch 16
 ```
 
-### Training Time Estimate (Google Colab T4 GPU)
+### Training Planning Estimate (Google Colab T4 GPU)
 
 | Dataset Size | Epochs | Approx Time |
 |-------------|--------|-------------|
@@ -459,11 +212,32 @@ model.export(format='onnx', imgsz=640, simplify=True)
 | 1000 images | 100 | ~60 min |
 | 2000 images | 150 | ~2 hours |
 
+These are planning estimates only. Record the actual GPU type, package version,
+batch size, epoch count and wall-clock time for the final run.
+
 ### Important Colab Tips
 
 - Free tier has a **~4 hour** session limit — save checkpoints to Google Drive
 - Training auto-saves checkpoints every epoch, so if disconnected you can resume
-- Use `patience=20` for early stopping to avoid wasting time if model converges early
+- The canonical script uses `patience=30` and saves the best checkpoint even if training stops early
+
+### Measured acceptance gates
+
+Use a frozen test split and the same saved laptop-camera videos for all candidates:
+
+- accept YOLO26s when precision and recall are each at least 0.80, mAP@0.5 is at
+  least 0.75, and p95 end-to-end latency is at most 500 ms on the Intel CPU server
+  or 200 ms on the selected GPU server;
+- accept the OpenVINO export only if it loses no more than 0.01 absolute mAP@0.5
+  versus its `best.pt` source;
+- use YOLO26n only when YOLO26s misses latency and YOLO26n still passes the
+  minimum quality gates;
+- test YOLO26m only with adequate balanced data and a GPU, accepting it only for
+  at least 0.02 absolute improvement in mAP@0.5:0.95 or small-sign recall without
+  breaking latency or false-positive limits; and
+- enable the safe hybrid only if it improves p95 latency by at least 10% or
+  small-sign recall by at least 0.02 absolute, while losing no more than 0.01
+  overall recall and not increasing false positives per minute.
 
 ---
 
@@ -475,10 +249,10 @@ model.export(format='onnx', imgsz=640, simplify=True)
 
 | Week | Focus | Deliverables | Who |
 |------|-------|-------------|-----|
-| **1** | **Project Kickoff** | • Form team, assign roles (see Task Distribution below) • Read all course documents carefully • Read this entire plan.md • Set up GitHub repo + WhatsApp/Discord group • Each member installs Android Studio | All |
-| **2** | **Title & Literature Search** | • Submit project title + team list to lecturer • Each member searches 5–8 papers on their assigned keywords (see Lit Review section) • Start shared Google Doc for references | All |
-| **3** | **Deep Literature Review** | • Each member writes 3-page critique for their area with proper citations • Draft Chapter 2 (Literature Review) in shared Google Doc • Group meeting to discuss findings and agree on system design | All |
-| **4** | **Setup Dev Environment** | • Install & configure: Android Studio, CMake, OpenCV C++, Python, Ultralytics • Run a "Hello World" Android app with CameraX (Member 1 & 2) • Run a YOLOv8n inference test on a sample image in Python (Member 3 & 4) • Start photographing/downloading Malaysian road sign images | Member 1 & 2 (Android), Member 3 & 4 (ML/Python) |
+| **1** | **Project Kickoff** | • Form team, assign roles • Read all course documents • Read this entire plan.md • Set up GitHub repo + WhatsApp/Discord group • Each member installs Python + VS Code | All |
+| **2** | **Title & Literature Search** | • Submit project title + team list to lecturer • Each member searches 5–8 papers on their assigned keywords • Start shared Google Doc for references | All |
+| **3** | **Deep Literature Review** | • Each member writes 3-page critique for their area with proper citations • Draft Chapter 2 (Literature Review) • Group meeting to discuss findings and agree on system design | All |
+| **4** | **Setup Dev Environment** | • Install & configure: Python, Flask, OpenCV, Ultralytics, OpenVINO, VS Code • Run a "Hello World" Flask web server (Member 1 & 2) • Run a YOLO26s inference test on a sample image in Python (Member 3 & 4) • Start photographing/downloading Malaysian road sign images | Member 1 & 2 (Web), Member 3 & 4 (ML/Python) |
 | **5** | **Draft Proposal Chapters 1–3** | • Chapter 1 (Introduction) — *Member 1* • Chapter 2 (Lit Review) — combine all 4 reviews — *All* • Chapter 3 (Proposed Method) — system block diagram + flowchart — *Member 2* • Submit draft of Chapter 2 to supervisor | All |
 | **6** | **Preliminary Work (Ch 4) + Finalize Proposal** | • Each member implements their preliminary module in C++ (see Ch 4 modules below) • Chapter 4 screenshots and results • Chapter 5 (Conclusion) — *Member 3* • Proofread, Turnitin check, format per FYP1 template | All |
 | **7** | **🎯 PROPOSAL SUBMISSION + PRESENTATION** | • Submit proposal report (Ch 1–5) • Record/present presentation video with demo • Each member shows their segmentation results on test images | All |
@@ -487,9 +261,9 @@ model.export(format='onnx', imgsz=640, simplify=True)
 
 | Week | Focus | Deliverables | Who |
 |------|-------|-------------|-----|
-| **8** | **Dataset + Model Training** | • Complete dataset: 300+ annotated Malaysian road sign images • Augment to 1500+ images • Train YOLOv8n on Google Colab • Evaluate mAP, iterate if needed • Export to ONNX → ncnn format | Member 3 (dataset) + Member 4 (training), Member 1 & 2 (help annotate + start Android scaffold) |
-| **9** | **Android App Core** | • CameraX live preview + frame capture (Member 1) • ncnn C++ inference engine + JNI bridge (Member 2) • Sign database JSON + TTS mapping (Member 3) • Model optimization + testing pipeline (Member 4) • **Integration day**: combine camera → inference → display | Member 1 (camera+UI), Member 2 (C++/JNI), Member 3 (database), Member 4 (model) |
-| **10** | **Features + Testing** | • TTS audio output working • Vibration alerts for warning signs • Test on all 84 provided images → log recognition rate • Test on real roads (phone in hand, walk around campus) • Bug fixes, performance tuning (<2 sec requirement) • PC demo setup via scrcpy | All |
+| **8** | **Dataset + Model Training** | • Complete and audit the 49-class dataset • Apply training-only augmentation • Train YOLO26s at 640 on Google Colab • Evaluate held-out metrics • Export and validate OpenVINO for Intel CPU | Member 3 (dataset) + Member 4 (training), Member 1 & 2 (help annotate + start web scaffold) |
+| **9** | **Web App Core** | • Flask/FastAPI backend with YOLO inference endpoint (Member 2) • WebSocket for real-time webcam streaming (Member 2) • Frontend: webcam view + bounding box canvas overlay (Member 1) • Sign database JSON (Member 3) • Model testing pipeline (Member 4) • **Integration day**: combine frontend → backend → YOLO → display | Member 1 (frontend), Member 2 (backend), Member 3 (database), Member 4 (model) |
+| **10** | **Features + Testing** | • Image/video upload working • Detection history log • Confidence threshold slider • Test on all 84 provided images → log recognition rate • Test on uploaded videos from real roads • Bug fixes, performance tuning (<2 sec requirement) | All |
 
 ### Phase 3: Final Report & Presentation (Weeks 11–14)
 
@@ -497,7 +271,7 @@ model.export(format='onnx', imgsz=640, simplify=True)
 |------|-------|-------------|-----|
 | **11** | **Final Report Writing** | • Follow FYP2 report template • Expand Ch 1–3 from proposal • Ch 4 (Implementation): each member documents their module • Ch 5 (Results): recognition rates, confusion matrix, error analysis | All |
 | **12** | **Report Completion** | • Ch 6 (Conclusion + Future Work) — *Member 4* • Appendices: source code • Tag every section with member name • Proofread, Turnitin check • Report ≤ 60 pages | All |
-| **13** | **🎯 FINAL PRESENTATION + DEMO** | • Record/present final video • Live demo: run app on phone, detect signs from camera • Show results for all 84 images + extra images (bonus 5 marks) • Screen mirror to PC for presentation via scrcpy | All |
+| **13** | **🎯 FINAL PRESENTATION + DEMO** | • Record/present final video • Live demo: open web app in browser, detect signs from webcam • Show results for all 84 images + extra images (bonus 5 marks) | All |
 | **14** | **Buffer / Polish** | • Address feedback • Final cleanup and submission | All |
 
 ---
@@ -508,10 +282,10 @@ model.export(format='onnx', imgsz=640, simplify=True)
 
 | Member | Role Title | Primary Responsibility | Skills to Learn |
 |--------|-----------|----------------------|----------------|
-| **Member 1** | **Android & UI Lead** | CameraX, Jetpack Compose UI, TTS, vibration, accessibility | Kotlin basics, CameraX tutorial, Jetpack Compose |
-| **Member 2** | **Systems Architect** | C++ ncnn engine, JNI bridge, OpenCV integration, system design | JNI tutorial, ncnn examples, CMake for Android |
-| **Member 3** | **Data & Database Lead** | Dataset collection, annotation, augmentation, sign meaning database | Roboflow, albumentations, SQLite/JSON |
-| **Member 4** | **ML & Evaluation Lead** | YOLO training (Colab), model conversion, testing, performance analysis | Ultralytics docs, ONNX export, Google Colab |
+| **Member 1** | **Frontend Lead** | HTML/CSS/JS frontend, webcam integration, bounding box display, responsive UI | HTML/CSS basics, JavaScript, WebRTC |
+| **Member 2** | **Backend Lead** | Flask/FastAPI server, YOLO inference API, WebSocket, OpenCV processing | Flask tutorial, WebSocket, REST API |
+| **Member 3** | **Data & Database Lead** | Dataset collection, annotation, augmentation, sign meaning database | Roboflow, albumentations, JSON |
+| **Member 4** | **ML & Evaluation Lead** | YOLO training (Colab), model evaluation, testing, performance analysis | Ultralytics docs, Google Colab |
 
 ---
 
@@ -547,21 +321,12 @@ model.export(format='onnx', imgsz=640, simplify=True)
 |---------|---------|-------------|
 | **Ch 1 — Introduction** | Updated from proposal, refined objectives | **Member 1** |
 | **Ch 2 — Literature Review** | Expanded with development findings | **All** |
-| **Ch 3 — Methodology** | YOLO architecture, ncnn pipeline, Android architecture, TTS design | **Member 2** |
+| **Ch 3 — Methodology** | YOLO architecture, web pipeline, Flask/FastAPI architecture, frontend design | **Member 2** |
 | **Ch 4 — Implementation** | Code walkthrough per module | **Each member** |
 | **Ch 5 — Results & Analysis** | Recognition rates, confusion matrix, error analysis, failure conditions | **Member 3 + Member 4** |
 | **Ch 6 — Conclusion & Future Work** | Summary, limitations, enhancements | **Member 4** |
 | **Appendices** | Source code listings | **All** |
 | **Presentation + Demo** | Final video + live demo | **Member 1 (demo), All** |
-
-**Individual Module Tasks** (required by project work doc):
-
-| Task | Member | Description |
-|------|--------|-------------|
-| **Task 1: Features (A)** | **Member 3** | HOG descriptors, color histograms, edge features → report recognition rates per feature set |
-| **Task 1: Features (B)** | **Member 4** | LBP texture, shape descriptors, aspect ratio features → report recognition rates independently |
-| **Task 2: Classifiers (A)** | **Member 1** | SVM and KNN classifiers → report recognition rates |
-| **Task 2: Classifiers (B)** | **Member 2** | Random Forest and CNN/YOLO → report recognition rates |
 
 ---
 
@@ -569,21 +334,19 @@ model.export(format='onnx', imgsz=640, simplify=True)
 
 | Component | Member | Details |
 |-----------|--------|---------|
-| **CameraX + Live Preview** | Member 1 | Camera feed, frame capture at 15-30 FPS, lifecycle management |
-| **Accessible UI Design** | Member 1 | High-contrast dark theme, extra-large buttons, screen reader support |
-| **TTS / Audio Output** | Member 1 | Sign ID → spoken description mapping, BM/EN language toggle |
-| **Vibration Alerts** | Member 1 | Vibrate patterns for different sign severity levels |
-| **C++ ncnn Inference Engine** | Member 2 | Load model, run YOLO inference, NMS post-processing |
-| **JNI Bridge** | Member 2 | Kotlin ↔ C++ interop, pass camera frames, return detections |
-| **OpenCV Pre/Post-processing** | Member 2 | Resize, color convert, draw bounding boxes |
-| **Dataset Collection** | Member 3 | Photograph + download 300+ Malaysian road signs |
+| **Frontend: Webcam + Live View** | Member 1 | WebRTC camera access, frame capture, send frames via WebSocket |
+| **Frontend: Detection Overlay** | Member 1 | Draw bounding boxes and labels on HTML Canvas |
+| **Frontend: UI Design** | Member 1 | Responsive layout, settings panel, detection history, dark theme |
+| **Backend: Flask/FastAPI Server** | Member 2 | API endpoints, WebSocket handler, file upload handler |
+| **Backend: YOLO Inference** | Member 2 | Load best.pt, run inference, return JSON results |
+| **Backend: OpenCV Processing** | Member 2 | Resize, color convert, draw bounding boxes for export |
+| **Dataset Collection** | Member 3 | Collect at least 50 original labelled images for each of the 49 final classes |
 | **Data Annotation** | Member 3 | Roboflow bounding box annotation for all images |
-| **Data Augmentation** | Member 3 | albumentations: flip, rotate, brightness, noise |
-| **Sign Database** | Member 3 | JSON file: sign_id → name_en, name_bm, description_en, description_bm, severity |
-| **YOLO Training (Colab)** | Member 4 | Train YOLOv8n, tune hyperparameters, validate mAP |
-| **Model Export & Conversion** | Member 4 | PyTorch → ONNX → ncnn, test converted model |
-| **Performance Testing** | Member 4 | Test 84 images, measure accuracy + speed, confusion matrix |
-| **Detection Suppression Logic** | Member 4 | Cooldown timer to avoid repeating same sign announcement |
+| **Data Augmentation** | Member 3 | Training split only: realistic rotation, scale, brightness, blur, noise and occlusion |
+| **Sign Database** | Member 3 | JSON file: sign_id → name, description, category, severity |
+| **YOLO Training (Colab)** | Member 4 | Train YOLO26s at 640, validate held-out metrics, export/test OpenVINO |
+| **Model Evaluation** | Member 4 | Report precision, recall, F1, mAP and confusion matrix |
+| **Performance Testing** | Member 4 | Measure end-to-end latency, FPS, accuracy on test set |
 
 ---
 
@@ -611,18 +374,6 @@ model.export(format='onnx', imgsz=640, simplify=True)
 | `traffic sign segmentation colour` | `morphological operations`, `connected components` |
 | `colour filtering traffic signs` | `adaptive thresholding`, `Otsu` |
 
-**Key Concepts to Cover in Review**:
-- HSV vs RGB vs LAB color spaces — which is best for sign detection and why
-- Adaptive vs fixed thresholding methods
-- Morphological operations (erosion, dilation, opening, closing) for noise removal
-- Challenges: varying lighting, shadows, weathered signs
-- Compare 3–4 papers' approaches and their accuracy results
-
-**Example Papers to Look For**:
-- "Real-time traffic sign detection using color and shape information" (common title pattern)
-- "A survey of traffic sign recognition" (survey papers are great for literature review)
-- "Robust traffic sign detection in challenging lighting conditions"
-
 ---
 
 ### Member 2: Shape Detection & Geometric Analysis for Road Signs
@@ -637,19 +388,6 @@ model.export(format='onnx', imgsz=640, simplify=True)
 | `contour-based sign recognition` | `approxPolyDP`, `convex hull` |
 | `road sign shape segmentation` | `template matching`, `moment invariants` |
 
-**Key Concepts to Cover in Review**:
-- Hough Circle Transform for circular sign detection
-- Contour detection + polygon approximation (approxPolyDP)
-- Hu Moments and shape descriptors
-- Edge detection methods: Canny, Sobel, Laplacian
-- Template matching approaches
-- Compare accuracy of shape-only vs color+shape methods
-
-**Example Papers to Look For**:
-- "Traffic sign detection using Hough Transform and shape analysis"
-- "Shape-based traffic sign recognition using contour features"
-- "Multi-feature traffic sign detection combining color and shape"
-
 ---
 
 ### Member 3: Deep Learning for Traffic Sign Recognition (YOLO, CNN)
@@ -659,26 +397,11 @@ model.export(format='onnx', imgsz=640, simplify=True)
 | Primary Keywords | Combine With |
 |-----------------|-------------|
 | `deep learning traffic sign recognition` | `YOLO`, `CNN`, `real-time` |
-| `YOLOv8 traffic sign detection` | `mobile`, `edge computing` |
+| `YOLO26 traffic sign detection` | `end-to-end NMS-free`, `web deployment`, `OpenVINO` |
 | `convolutional neural network road sign` | `transfer learning`, `fine-tuning` |
 | `traffic sign detection deep learning` | `small object detection`, `data augmentation` |
 | `GTSRB GTSDB benchmark` | `recognition accuracy`, `comparison` |
-| `lightweight object detection mobile` | `YOLOv5`, `SSD`, `MobileNet` |
-
-**Key Concepts to Cover in Review**:
-- Evolution: traditional CV → CNN → YOLO/SSD for sign detection
-- YOLO architecture overview (one-stage vs two-stage detectors)
-- Transfer learning: pretrained model → fine-tune on sign dataset
-- German Traffic Sign Recognition Benchmark (GTSRB) — the standard benchmark
-- Data augmentation techniques for small datasets
-- Comparison of YOLO vs SSD vs Faster R-CNN accuracy/speed
-- Why lightweight models (nano/tiny) are needed for mobile deployment
-
-**Example Papers to Look For**:
-- "YOLOv8 for real-time traffic sign detection"
-- "A comprehensive survey on traffic sign detection and recognition"
-- "Lightweight traffic sign detection for embedded systems"
-- "Transfer learning for traffic sign recognition with limited data"
+| `lightweight object detection` | `YOLOv5`, `SSD`, `MobileNet` |
 
 ---
 
@@ -694,18 +417,6 @@ model.export(format='onnx', imgsz=640, simplify=True)
 | `traffic sign recognition robustness` | `data augmentation`, `blur`, `glare` |
 | `deep learning accuracy enhancement` | `feature extraction`, `preprocessing` |
 | `small object detection optimization` | `efficiency`, `edge computing` |
-
-**Key Concepts to Cover in Review**:
-- Techniques to improve CNN accuracy in challenging real-world scenarios (rain, night, strong glare).
-- Utilizing data augmentation to train models for environmental robustness.
-- Optimizing YOLO algorithms for real-time, high-accuracy deployment on mobile/edge devices.
-- Hybrid approaches: Region Focusing (preprocessing) combined with parallelization to handle high-definition camera feeds without lagging.
-- Analyzing systematic reviews to justify YOLO as the best architecture for accuracy vs. speed trade-offs.
-
-**Example Papers to Look For**:
-- "Traffic Sign Detection Under Adverse Environmental Conditions Based on CNN" (Paper 10)
-- "Neural-Network-Based Traffic Sign Detection and Recognition in High-Definition Images Using Region Focusing and Parallelization" (Paper 8)
-- "Traffic Sign Detection and Recognition Using YOLO Object Detection Algorithm: A Systematic Review" (Paper 7)
 
 ---
 
@@ -740,9 +451,9 @@ Paragraph 4: Summary and gap analysis
 
 | Criteria | How We Address It |
 |----------|------------------|
-| Ch 1: Clear problem statement + objectives (3 marks) | Accessibility for visually impaired + traffic sign detection |
+| Ch 1: Clear problem statement + objectives (3 marks) | Real-time traffic sign detection for driving assistance |
 | Ch 2: Recent literature within 5–10 years (12 marks) | Each member reviews 3–5 papers from 2019–2026 |
-| Ch 3: Novel system design with block diagram (8 marks) | YOLO + ncnn + Android + TTS pipeline diagram |
+| Ch 3: Novel system design with block diagram (8 marks) | YOLO + Flask/FastAPI + WebSocket + Web frontend pipeline diagram |
 | Ch 4: Working preliminary segmentation (5 marks) | 4 modules: Red/Blue/Yellow color segmentation + shape detection |
 | Ch 5: Clear conclusion (2 marks) | Summary + expected outcomes + timeline |
 | Presentation: Clear demo video (10 marks) | Show segmentation results on test images |
@@ -752,7 +463,7 @@ Paragraph 4: Summary and gap analysis
 | Criteria | How We Address It |
 |----------|------------------|
 | Well-written report following FYP2 format (20 marks) | Follow template, system diagram, W5H explanation |
-| Runs within 2 seconds per image (5 marks) | ncnn YOLO inference ~20ms per frame, well under 2s |
+| Runs within 2 seconds per image (5 marks) | Measure end-to-end YOLO26s server latency; require every acceptance run to pass the rubric rather than citing a vendor FPS estimate |
 | Correct sign identification × 84 images (70 marks scaled) | Train YOLO on diverse Malaysian sign dataset |
 | Beyond 84 test images (5 marks) | Test on our own collected Malaysian road sign photos |
 | Report ≤ 60 pages (1 mark) | Monitor page count during writing |
@@ -764,17 +475,18 @@ Paragraph 4: Summary and gap analysis
 
 | Tool | Purpose | How to Get |
 |------|---------|-----------|
-| Android Studio Ladybug (2024+) | Android app development + Kotlin | developer.android.com/studio |
-| Android NDK + CMake | Compile C++ for Android | Install via Android Studio → SDK Manager → SDK Tools |
-| OpenCV 4.x Android SDK | Image processing in C++ | opencv.org/releases → Android |
-| ncnn (prebuilt Android) | C++ neural network inference | github.com/Tencent/ncnn/releases |
-| Python 3.10+ | Training scripts | python.org |
-| Ultralytics | Train YOLOv8 | `pip install ultralytics` |
+| Python 3.10+ | Backend server + ML training | python.org |
+| Flask or FastAPI | Web backend framework | `pip install flask` or `pip install fastapi uvicorn` |
+| Flask-SocketIO | WebSocket for real-time streaming | `pip install flask-socketio` |
+| Ultralytics | Train and validate YOLO26 | `pip install "ultralytics>=8.4.90,<9"` |
+| OpenVINO | Intel CPU server inference | `pip install openvino` |
+| OpenCV (Python) | Image processing | `pip install opencv-python` |
+| VS Code | Code editor | code.visualstudio.com |
 | Google Colab | Free GPU for training | colab.research.google.com |
 | Roboflow | Dataset annotation (free tier) | roboflow.com |
-| scrcpy | Mirror Android screen to PC for demos | github.com/Genymobile/scrcpy |
 | Git + GitHub | Version control | github.com |
 | MS Visual Studio 2022 | C++ dev/testing on PC (preliminary work) | visualstudio.microsoft.com |
+| Chrome/Firefox/Edge | Web app testing | Already installed |
 
 ---
 
@@ -784,9 +496,9 @@ Paragraph 4: Summary and gap analysis
 |------|--------|-----------|
 | Not enough Malaysian sign images | Low accuracy | Start collecting Week 2, augment 5–10x, supplement with GTSDB dataset |
 | YOLO training needs GPU | Can't train locally | Use Google Colab (free T4 GPU) — see guide above |
-| ncnn integration is complex | Blocks development | Follow step-by-step guide above; fallback to TensorFlow Lite if stuck |
-| Android/Kotlin is new to team | Slow development | Follow CameraX codelabs by Google; start simple, iterate |
-| App too slow on phone | Fails 2-sec requirement | YOLOv8-nano ~20ms inference; quantize to INT8 if needed |
+| Web development is new to team | Slow development | Follow Flask tutorials; start simple, iterate |
+| WebSocket streaming is complex | Can't get real-time working | Fallback to image upload mode (simpler HTTP POST) |
+| YOLO26s server misses latency gate | High p95 latency | Validate OpenVINO on Intel CPU; use YOLO26n only if it still passes all quality gates |
 | Team member falls behind | Incomplete work | Weekly check-ins, clear ownership, buffer week 14 |
 | Signs look different in real-world vs training | Poor generalization | Augment data heavily; test in various lighting conditions |
 
@@ -794,139 +506,60 @@ Paragraph 4: Summary and gap analysis
 
 ## 🤖 AI Agent Prompts for Team Members
 
-> These prompts are for teammates to use with AI coding assistants (Gemini, Cursor, etc.) when building their assigned modules. **Read the full plan.md first** before using any prompt. Each prompt references files and architecture from this plan.
+> These prompts are for teammates to use with AI coding assistants (Gemini, Cursor, etc.) when building their assigned modules. **Read the full plan.md first** before using any prompt.
 
 ---
 
-### Member 1 — Android & UI Lead
+### Member 1 — Frontend Lead
 
-#### Prompt: CameraX Setup
+#### Prompt: Webcam + Bounding Box Display
 ```
-I am building an Android app in Kotlin using Jetpack Compose. I need to set up CameraX 
-to capture live camera frames for real-time ML inference.
+I am building a web frontend for a real-time traffic sign detection system.
 
 Requirements:
-- Use the BACK camera
-- Set up ImageAnalysis use case to capture frames at 15-30 FPS
-- Each frame should be converted from ImageProxy to android.graphics.Bitmap
-- The Bitmap will be passed to a C++ native library via JNI for YOLOv8 inference
-- Also set up a Preview use case so the user sees the live camera feed
-- Handle camera permissions properly
-- Use CameraX lifecycle binding
+- Access the user's webcam using WebRTC (navigator.mediaDevices.getUserMedia)
+- Capture frames at ~10-15 FPS from the webcam video element
+- Send each frame to the backend via WebSocket as base64 JPEG
+- Receive detection results (bounding boxes, class labels, confidence) from the server
+- Draw bounding boxes with labels on an HTML Canvas overlaying the video
+- Also support image/video file upload via a file input
+- Desktop/laptop layout for Chrome, Firefox and Edge; no native mobile app
 
-Tech stack: Kotlin, Jetpack Compose, CameraX (latest version), minimum API 24.
-The app is a road sign detection app for visually impaired users.
-
-Please create:
-1. CameraScreen.kt - Composable with camera preview and overlay for detection boxes
-2. CameraFrameAnalyzer.kt - ImageAnalysis.Analyzer that converts frames
-3. Required permission handling code
+Tech stack: HTML, CSS, vanilla JavaScript (no frameworks).
+Create:
+1. index.html - main page with webcam view, canvas overlay, upload button
+2. style.css - dark theme, responsive design
+3. app.js - webcam access, WebSocket connection, canvas drawing
 
 Keep it beginner-friendly with comments explaining each step.
 ```
 
-#### Prompt: Text-to-Speech Implementation
-```
-I need to implement Text-to-Speech (TTS) for an Android app (Kotlin, Jetpack Compose) 
-that speaks detected road sign names aloud for visually impaired users.
-
-Requirements:
-- Initialize Android's TextToSpeech engine
-- Support two languages: English (en-MY) and Bahasa Melayu (ms-MY)
-- Language toggle in settings
-- Function: speakSign(signId: Int, signName: String, description: String)
-- Detection suppression: don't repeat the same sign within 5 seconds
-- Queue management: if a new sign is detected while speaking, interrupt current speech
-- Vibration alert for warning/danger signs (sign categories: prohibitory, warning, mandatory)
-- Different vibration patterns: short buzz for info, long buzz for warning, double buzz for danger
-
-Create:
-1. TTSManager.kt - manages TTS engine lifecycle and speech
-2. VibrationManager.kt - manages vibration patterns
-3. SignDatabase.kt - JSON-based sign lookup (signId → name, description in EN and BM)
-
-Include a sample JSON structure for the sign database.
-```
-
-#### Prompt: Accessible UI Design
-```
-I need to build an accessible Android UI using Jetpack Compose for a road sign detection 
-app designed for visually impaired users.
-
-Requirements:
-- Dark background with high-contrast elements (WCAG AAA contrast ratio)
-- Extra-large touch targets (minimum 72dp x 72dp)
-- Only 3 main screens: Camera (main), History, Settings
-- Camera screen: full-screen camera preview with translucent overlay showing detected sign name
-- Big "Start/Stop Detection" toggle button at the bottom
-- Settings: language toggle (EN/BM), confidence threshold slider, voice command toggle
-- History screen: list of last 50 detected signs with timestamps
-- Support Android TalkBack screen reader (proper content descriptions)
-- Minimal text — the app relies on audio, not visual feedback
-- Material 3 design with custom dark color scheme
-
-Create the full UI scaffold with navigation.
-```
-
 ---
 
-### Member 2 — Systems Architect
+### Member 2 — Backend Lead
 
-#### Prompt: ncnn YOLOv8 Inference Engine (C++)
+#### Prompt: Flask/FastAPI YOLO Inference Server
 ```
-I need to write a C++ inference engine using ncnn to run a YOLOv8-nano model on Android.
-
-Context:
-- The model is trained with Ultralytics YOLOv8n on a custom dataset (Malaysian road signs)
-- Model files: yolov8n_signs.param and yolov8n_signs.bin (ncnn format)
-- Input: 640x640 RGB image
-- Output: detected bounding boxes with class IDs and confidence scores
-- Need NMS (Non-Maximum Suppression) post-processing with IoU threshold 0.45
-- Confidence threshold default 0.5 (configurable)
-- Number of classes: ~50 (Malaysian road sign types)
+I need to build a Python web server that runs YOLO26s inference at a 640-pixel
+baseline for real-time traffic sign detection.
 
 Requirements:
-- Use ncnn C++ API (not the Java/Kotlin wrapper)
-- Use OpenCV for image preprocessing (resize, color conversion)
-- Implement proper NMS to filter overlapping detections
-- Return results as a vector of structs: {x, y, width, height, classId, confidence}
-- Use 4 CPU threads for inference
-- No Vulkan GPU compute (keep it simple, CPU only)
+- Load the validated OpenVINO export at startup on an Intel CPU server
+- Keep YOLO26's default end-to-end, NMS-free detection output
+- WebSocket endpoint: receive base64 JPEG frames, run inference, return JSON results
+- HTTP POST endpoint: receive uploaded image file, run inference, return annotated image
+- Return results as JSON: [{x, y, width, height, class_name, confidence}, ...]
+- Configurable confidence threshold (default 0.5)
+- Use OpenCV for image decoding/encoding
+- Sign database lookup: map class_id to sign name and description
 
 Create:
-1. sign_detector.h - header with Detection struct and SignDetector class
-2. sign_detector.cpp - full implementation
-3. Include detailed comments explaining each ncnn API call
+1. app.py - main Flask/FastAPI server
+2. detector.py - YOLO26s/OpenVINO inference wrapper class
+3. sign_database.json - sign ID to name/description mapping
+4. requirements.txt - all dependencies
 
-I'm a C++ developer but new to ncnn. Please explain ncnn concepts as you go.
-```
-
-#### Prompt: JNI Bridge
-```
-I need to create a JNI (Java Native Interface) bridge to connect my Kotlin Android app 
-with a C++ native library for YOLOv8 inference.
-
-Context:
-- C++ side: SignDetector class with loadModel() and detect() methods
-- Kotlin side: NativeLib class that calls into C++
-- Camera frames come as android.graphics.Bitmap from CameraX
-- Need to pass Bitmap data to C++ as pixel array
-- C++ processes with OpenCV + ncnn, returns detection results
-- Results need to be passed back to Kotlin as a list of Detection objects
-
-The C++ library uses OpenCV and ncnn. The Android app uses Kotlin + Jetpack Compose.
-
-Create:
-1. jni_bridge.cpp - C++ JNI functions
-2. NativeLib.kt - Kotlin external function declarations
-3. Detection.kt - Kotlin data class matching C++ Detection struct
-4. CMakeLists.txt - complete CMake config linking ncnn + OpenCV + JNI
-
-Include explanation of:
-- How JNI works (for a beginner)
-- How to pass Bitmap pixels from Kotlin to C++
-- How to return array of objects from C++ to Kotlin
-- Common JNI pitfalls and how to avoid memory leaks
+I'm a C++ developer new to Python web development. Explain Flask/FastAPI concepts.
 ```
 
 ---
@@ -935,56 +568,22 @@ Include explanation of:
 
 #### Prompt: Dataset Preparation
 ```
-I need to prepare a dataset of Malaysian road signs for YOLOv8 object detection training.
+I need to prepare a dataset of Malaysian road signs for YOLO26 object detection training.
 
 Current situation:
 - I have 84 sample images in "Color Inputs" folder (Red Signs, Blue Signs, Yellow Signs)
-- I need to collect more Malaysian road signs to reach 300+ images minimum
+- I need to collect varied originals toward at least 20 images per locked class
 - Signs include: speed limits, warning signs, mandatory signs, prohibitory signs
 - Need to annotate with bounding boxes and class labels
 
 Please help me with:
 1. A Python script to organize and rename images into a YOLO-compatible folder structure
-2. A data.yaml configuration file for Ultralytics YOLOv8 training
-3. A Python script using albumentations to augment the dataset (flip, rotate, brightness, 
-   noise, blur, crop) to multiply it 5x
-4. A list of recommended Malaysian road sign classes to use (at least 50 classes)
+2. Validation of the existing 49-class data.yaml for Ultralytics YOLO26 training
+3. A Python script using albumentations to augment the dataset
+4. Verification that the 49 canonical hyphenated names and IDs are unchanged,
+   including corrected class ID 33 = pass-obstacle-on-either-side
 5. Instructions on how to use Roboflow (free tier) for bounding box annotation
 6. A validation split script (80% train, 10% validation, 10% test)
-
-YOLO annotation format: each image has a .txt file with lines of:
-class_id center_x center_y width height (all normalized 0-1)
-```
-
-#### Prompt: Sign Meaning Database
-```
-I need to create a comprehensive JSON database of Malaysian road signs for a Text-to-Speech 
-app that helps visually impaired users understand road signs detected by camera.
-
-Requirements:
-- Minimum 50 sign entries
-- Each entry should have:
-  - signId (int): matching the YOLO class ID
-  - nameEn (string): sign name in English
-  - nameBm (string): sign name in Bahasa Melayu
-  - descriptionEn (string): what the sign means in simple English (spoken by TTS)
-  - descriptionBm (string): what the sign means in Bahasa Melayu
-  - category (string): "prohibitory", "warning", "mandatory", "information"
-  - severity (string): "info", "caution", "danger"
-  - shape (string): "circle", "triangle", "rectangle", "octagon", "diamond"
-  - color (string): "red", "blue", "yellow", "green"
-
-Categories of Malaysian road signs to include:
-- Speed limits (5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 110 km/h)
-- Prohibitory (no entry, no U-turn, no overtaking, no parking, no stopping, no horn)
-- Warning (bend, curve, junction, roundabout, speed bump, pedestrian, school, animal, slippery)
-- Mandatory (turn left, turn right, go straight, keep left, roundabout)
-- Special (stop, give way)
-
-Create: sign_database.json with all entries.
-For TTS descriptions, use natural spoken language like:
-"Speed limit sixty kilometers per hour. Please slow down."
-NOT: "Speed limit 60 km/h"
 ```
 
 ---
@@ -993,116 +592,47 @@ NOT: "Speed limit 60 km/h"
 
 #### Prompt: YOLO Training on Google Colab
 ```
-I need to train a YOLOv8-nano model on Google Colab (free GPU) for Malaysian road sign 
-detection and then export it for mobile deployment.
+I need to train a YOLO26s model on Google Colab for Malaysian road sign detection,
+then deploy its validated OpenVINO export on an Intel CPU Flask/FastAPI server.
 
 Context:
-- Dataset: ~300 images of Malaysian road signs, annotated in YOLO format
-- Number of classes: ~50 (different sign types)
+- Dataset: reviewed originals plus training-only augmentation in YOLO format
+- Number of classes: exactly 49 with the canonical data.yaml order
 - Dataset is uploaded to Google Drive
-- Need to export the trained model in ONNX format for later conversion to ncnn
+- YOLO26s at imgsz=640 is the baseline; YOLO26n is a latency fallback
+- YOLO26m is tested only with adequate balanced data and a GPU server
 
-Please create a complete Google Colab notebook (.ipynb style as code cells) that:
+Please create a complete Google Colab notebook that:
 1. Installs ultralytics
 2. Mounts Google Drive
 3. Verifies dataset structure and data.yaml
-4. Trains YOLOv8n with these settings:
-   - epochs=100, imgsz=640, batch=16
-   - patience=20 (early stopping)
-   - augmentation enabled (mosaic, mixup, hsv adjustments)
+4. Trains YOLO26s with epochs=150, imgsz=640, batch=16 and early stopping
 5. Shows training metrics (mAP, loss curves)
 6. Runs validation and shows confusion matrix
-7. Exports best model to ONNX format (simplified)
-8. Saves everything to Google Drive
-9. Tests inference on a few sample images and displays results
-
-Include instructions for:
-- How to convert ONNX to ncnn format (using onnx2ncnn tool)
-- What mAP score to aim for (>0.8 is good for this task)
-- How to interpret the confusion matrix
-- What to do if accuracy is low (more data, more augmentation, adjust hyperparams)
+7. Saves best.pt and exports/validates OpenVINO against the same held-out test set
+8. Reports precision, recall, mAP, p95 latency and false positives per minute
 
 I'm new to deep learning. Please explain what each parameter means.
 ```
-
-#### Prompt: Performance Testing & Evaluation
-```
-I need to create a comprehensive testing and evaluation pipeline for a YOLOv8-nano 
-traffic sign detection model.
-
-Requirements:
-1. Test on all 84 provided test images and record:
-   - Per-image: detected signs, confidence scores, inference time
-   - Overall: accuracy, precision, recall, F1-score, mAP@0.5
-2. Generate a confusion matrix visualization
-3. Identify failure cases: which signs were missed or misclassified and analyze why
-4. Test inference speed: measure average ms per image
-5. Test beyond the 84 images on additional collected images
-6. Compare two feature sets (HOG + color histogram vs deep learning features)
-7. Create a results summary table suitable for the final report
-
-Create Python scripts that:
-1. test_model.py - runs inference on all test images, saves results to CSV
-2. evaluate.py - calculates metrics and generates confusion matrix plot
-3. compare_features.py - compares HOG+SVM vs YOLO recognition rates
-4. Generate report-ready plots (matplotlib, saved as PNG)
-
-Output should be formatted for direct inclusion in the FYP2 report.
-```
-
----
-
-## 🔧 PC Demo Setup
-
-For presentations and supervisor demos, you need to show the app on a big screen:
-
-### Option 1: scrcpy (Recommended — Easiest)
-```bash
-# 1. Install scrcpy (free, open source)
-# Download from: https://github.com/Genymobile/scrcpy/releases
-# Extract the zip, no installation needed
-
-# 2. Connect Android phone via USB
-# Enable USB Debugging in phone Settings → Developer Options
-
-# 3. Run scrcpy
-scrcpy.exe
-
-# Your phone screen is now mirrored to PC with low latency
-# The camera and app work on the real phone, screen shows on PC
-```
-
-### Option 2: Android Studio Emulator
-```
-1. Open Android Studio → Device Manager → Create Virtual Device
-2. Choose a phone (e.g., Pixel 7)
-3. For camera: in emulator settings, set Camera → Back → Webcam0
-4. This uses your PC's webcam as the emulator's camera
-5. Limitations: webcam quality may be lower, emulator is slower
-```
-
-### For Video Presentations
-- Use **OBS Studio** (free) to record the scrcpy window
-- Or use Android's built-in screen recording + voiceover
 
 ---
 
 ## ⚠️ Beginner Learning Path (First 2 Weeks)
 
-Since the team is new to Android and deep learning, here's what each member should learn first:
+Since the team is new to web development and deep learning, here's what each member should learn first:
 
 | Member | Watch/Read First | Time |
 |--------|-----------------|------|
-| **Member 1** | [Android Basics in Kotlin](https://developer.android.com/courses/android-basics-compose/course) — Units 1-2 only | 4-6 hours |
-| **Member 1** | [CameraX Getting Started](https://developer.android.com/codelabs/camerax-getting-started) — Google Codelab | 2 hours |
-| **Member 2** | [Android NDK Getting Started](https://developer.android.com/ndk/guides) — just the basics | 2 hours |
-| **Member 2** | [ncnn Wiki](https://github.com/Tencent/ncnn/wiki) — "how-to-use-ncnn-with-alexnet" example | 3 hours |
+| **Member 1** | [HTML & CSS Basics](https://developer.mozilla.org/en-US/docs/Learn) — MDN Web Docs | 4-6 hours |
+| **Member 1** | [JavaScript Basics](https://javascript.info/) — first 5 chapters | 4 hours |
+| **Member 2** | [Flask Quickstart](https://flask.palletsprojects.com/en/3.0.x/quickstart/) | 2 hours |
+| **Member 2** | [Flask-SocketIO Tutorial](https://flask-socketio.readthedocs.io/) | 2 hours |
 | **Member 3** | [Roboflow Annotation Tutorial](https://docs.roboflow.com/annotate) — free tier | 1 hour |
 | **Member 3** | [Albumentations Tutorial](https://albumentations.ai/docs/getting_started/image_augmentation/) | 1 hour |
-| **Member 4** | [Ultralytics YOLOv8 Quickstart](https://docs.ultralytics.com/quickstart/) | 2 hours |
+| **Member 4** | [Ultralytics YOLO26 Guide](https://docs.ultralytics.com/models/yolo26/) | 2 hours |
 | **Member 4** | [Google Colab Intro](https://colab.research.google.com/notebooks/intro.ipynb) | 1 hour |
 
 ---
 
-*Last updated: 2026-06-24*
-*Plan version: 2.0 — Finalized for Option B (Blind-Friendly Audio Assistant)*
+*Last updated: 2026-08-11*
+*Plan version: 4.0 — YOLO26s Server-Side Web Deployment*

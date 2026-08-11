@@ -1,24 +1,83 @@
-# ============================================
-# [Member 4] export_model.py
-# ============================================
-# Module: Model Export (PyTorch → ONNX)
-# Owner: Member 4 (ML & Evaluation Lead)
-#
-# Purpose:
-#   - Load trained YOLOv8n best.pt weights
-#   - Export to ONNX format with simplification
-#   - Settings: imgsz=640, simplify=True, opset=12
-#   - Verify exported ONNX model runs correctly
-#   - Output: best.onnx (ready for ncnn conversion)
-#
-# Next Step After This:
-#   Convert ONNX to ncnn using onnx2ncnn tool:
-#     ./onnx2ncnn best.onnx model.param model.bin
-#     ./ncnnoptimize model.param model.bin model_opt.param model_opt.bin 65536
-#
-# References:
-#   - Ultralytics export: https://docs.ultralytics.com/modes/export/
-#   - See plan.md → ncnn Integration Guide → Step 2
-#
-# TODO: Implement model export
-# ============================================
+"""Export a trained YOLO26 detector for the server/web inference pipeline.
+
+The active deployment targets are ONNX and OpenVINO. YOLO26's native
+end-to-end (NMS-free) output is retained in both exports.
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+from ultralytics import YOLO
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_MODEL = REPO_ROOT / "models" / "best.pt"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--model",
+        default=str(DEFAULT_MODEL),
+        help="Trained YOLO26 .pt weights (an official model name is also accepted).",
+    )
+    parser.add_argument("--imgsz", type=int, default=640, help="Square export image size.")
+    parser.add_argument(
+        "--device",
+        default=None,
+        help="Export device, for example cpu or 0. Omit for Ultralytics auto-selection.",
+    )
+    parser.add_argument(
+        "--opset",
+        type=int,
+        default=None,
+        help="Optional ONNX opset override. Omit to use the Ultralytics default.",
+    )
+    parser.add_argument(
+        "--no-simplify",
+        action="store_true",
+        help="Disable ONNX graph simplification.",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    if args.imgsz <= 0:
+        raise SystemExit("--imgsz must be greater than zero")
+
+    model = YOLO(args.model)
+    common = {
+        "imgsz": args.imgsz,
+        "end2end": True,
+    }
+    if args.device:
+        common["device"] = args.device
+
+    onnx_options = {
+        **common,
+        "format": "onnx",
+        "simplify": not args.no_simplify,
+    }
+    if args.opset is not None:
+        onnx_options["opset"] = args.opset
+
+    print("Exporting end-to-end ONNX model...")
+    onnx_path = model.export(**onnx_options)
+
+    print("Exporting end-to-end OpenVINO model...")
+    openvino_path = model.export(format="openvino", **common)
+
+    print("\nExports complete:")
+    print(f"  ONNX:     {onnx_path}")
+    print(f"  OpenVINO: {openvino_path}")
+    print("Use the OpenVINO export for the Intel CPU web backend and keep ONNX as a portable fallback.")
+
+
+if __name__ == "__main__":
+    main()

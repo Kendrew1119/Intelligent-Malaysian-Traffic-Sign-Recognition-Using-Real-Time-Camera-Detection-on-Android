@@ -1,171 +1,128 @@
 # Chapter 4.4 — Shape Detection of Traffic Signs
 
-**Developed by: Member 4 (Kendrew)**
-**Module: Shape Detection**
+**Developed by:** Member 4 (Kendrew)
+**Module:** OpenCV preliminary colour segmentation and shape detection
 
----
+## 4.4.1 Purpose and Scope
 
-## 4.4.1 Algorithm Description
+This preliminary module detects the dominant sign-coloured region and classifies its geometric shape as Circle, Triangle, Rectangle, Octagon or Polygon. It is implemented in C++17 with OpenCV. The static program in `preliminary/member4_shape_detection/shape_detection.cpp` tests the supplied image folders and optionally displays a six-panel processing result with `--show`. The separate `camera_detection.cpp` program demonstrates live webcam colour-and-shape detection.
 
-This module detects and classifies the geometric shape of traffic signs from the 84 provided test images using OpenCV C++ image processing techniques. The algorithm integrates **HSV color segmentation** with **contour-based shape classification** to isolate traffic signs from complex backgrounds and identify their shape category.
+This module is not the final 49-class traffic-sign classifier. It provides explainable image-processing evidence and candidate/shape information. The final system will use a pretrained YOLO26s CNN detector to distinguish signs that have the same colour and shape but different pictograms or speed values.
 
-### Processing Pipeline Flowchart
+## 4.4.2 Algorithm Description
 
-```text
-Input Image
-    │
-    ▼
-Convert BGR → HSV Color Space
-    │
-    ▼
-Apply Color-Specific HSV Threshold
-(Red / Blue / Yellow masks)
-    │
-    ▼
-Morphological OPEN (remove noise)
-    │
-    ▼
-Morphological CLOSE (fill holes)
-    │
-    ▼
-Find External Contours
-    │
-    ▼
-Select Largest Contour (= sign boundary)
-    │
-    ▼
-Classify Shape:
-├── approxPolyDP (loose, ε=4%) → 3 vertices → Triangle
-├── approxPolyDP (loose, ε=4%) → 4 vertices → Rectangle
-├── minEnclosingCircle circularity > 0.75?
-│   ├── approxPolyDP (strict, ε=1%) → 7-9 vertices → Octagon
-│   └── else → Circle
-└── else → Polygon
-    │
-    ▼
-Generate 6-Panel Grid Output
-    │
-    ▼
-Save Result + Print Accuracy Statistics
+1. The static program resizes the source image to 300 × 300 pixels.
+2. It converts the BGR image to HSV and applies colour-specific thresholds for Red Signs, Blue Signs or Yellow Signs. Red uses two HSV hue ranges because hue wraps around the 0/180 boundary.
+3. A 3 × 3 rectangular morphological opening removes small mask noise, followed by closing to fill small holes.
+4. External contours are extracted from the HSV colour mask. Grayscale, Gaussian blur and Canny edges are generated only for the visual grid; they are not the contour source used for classification.
+5. Each contour is filtered by bounding-box aspect ratio (0.5–1.5) and solidity. The yellow category has a lower solidity requirement (0.40) than red/blue (0.50). The largest remaining contour is accepted only when its area exceeds 500 px².
+6. The selected contour is smoothed, converted to a convex hull and analysed using loose and strict `approxPolyDP` approximations, minimum-enclosing-circle area ratio and bounding-box extent.
+7. Three loose vertices produce Triangle. Four loose vertices use extent < 0.70 to identify a triangle-like contour; otherwise they produce Rectangle. For other contours, a circle-fill ratio > 0.60 identifies a round shape; strict vertices 7–9 produce Octagon and other round contours produce Circle. The remainder is Polygon.
+8. A 3 × 2 grid is saved: Original, Grayscale, Canny Edges, Colour Mask, Shape, and Sign Segmented.
+
+## 4.4.3 Static Demonstration Flow — `shape_detection.cpp --show`
+
+```mermaid
+flowchart TD
+    A["Read image"] --> B["Resize to 300 × 300"]
+    B --> C["HSV colour threshold"]
+    C --> D["3 × 3 Morphological Open and Close"]
+    D --> E["Find external contours"]
+    E --> F["Aspect ratio and solidity filtering"]
+    F --> G["Largest valid contour; area > 500 px²"]
+    G --> H["Convex hull and geometric features"]
+    H --> I["Circle / Triangle / Rectangle / Octagon / Polygon"]
+    I --> J["Save and optionally show six-panel grid"]
 ```
 
-### Key Design Decisions
+`--show` opens each saved six-panel grid and waits for a key press before continuing to the next image. This is the recommended static preliminary demonstration because it clearly shows the HSV mask and segmented sign.
 
-1. **HSV color segmentation instead of raw Canny edge detection.** The previous approach applied Canny edge detection directly on the grayscale image, which picked up edges from trees, buildings, and road markings, producing excessive noise and false contours. By converting to the HSV color space first, the algorithm isolates only the brightly coloured sign regions (red, blue, yellow) and discards the dull background entirely. This dramatically reduces false positives.
+## 4.4.4 Live Camera Demonstration — `camera_detection.cpp`
 
-2. **Separate HSV thresholds per color category.** Red signs require two HSV ranges because red wraps around the 0°/180° boundary in the Hue channel. Blue and yellow signs each use a single range. The thresholds were empirically tuned:
+```mermaid
+flowchart TD
+    A["Open webcam"] --> B["Capture and resize frame to 640 × 480"]
+    B --> C["Bounded gray-world white balance"]
+    C --> D["Create red, blue and yellow HSV masks"]
+    D --> E["Contours: area > 3000, aspect ratio and solidity"]
+    E --> F["Classify valid non-Polygon candidate"]
+    F --> G["Same colour + shape for 3 frames?"]
+    G -->|Yes| H["Draw bounding box and colour-shape label"]
+    G -->|No| B
+    H --> I["Press M: mask view; Q or Esc: quit"]
+    I --> B
+```
 
-   | Color | Hue Range | Saturation | Value |
-   | :--- | :--- | :--- | :--- |
-   | Red (range 1) | 0–10 | 65–255 | 55–255 |
-   | Red (range 2) | 165–180 | 60–255 | 55–255 |
-   | Blue | 85–135 | 102–255 | 31–255 |
-   | Yellow | 12–38 | 80–255 | 50–255 |
+The webcam program has no `--camera` command-line flag: it is a separate executable/source file. For the presentation, build and run `camera_detection.cpp`; press **M** to show the useful 2 × 2 view (Original, HSV Mask, Contours and Final Output), and **Q** or **Esc** to quit. Do not claim that the live result recognises the exact traffic-sign class; it currently recognises colour and shape only.
 
-3. **Morphological OPEN + CLOSE.** OPEN (erosion then dilation) removes small noise spots. CLOSE (dilation then erosion) fills small holes inside the sign region. Both use a 3×3 rectangular kernel.
+## 4.4.5 Evaluation Methodology
 
-4. **Dual-epsilon polygon approximation.** A loose approximation (ε = 4% of perimeter) is used for triangle and rectangle detection where fewer vertices are expected. A strict approximation (ε = 1%) preserves more vertices and is used to distinguish octagons (7–9 vertices) from circles (>9 vertices) among high-circularity contours.
+The supplied input folders contain 84 images: 28 Red Signs, 28 Blue Signs and 28 Yellow Signs. The predicted output shape for each image was manually compared with the visible ground-truth sign shape. A result is correct only when the predicted geometric class matches the sign: Circle, Triangle, Rectangle/Diamond or Octagon.
 
-5. **MinEnclosingCircle-based circularity.** Instead of using perimeter-based circularity (which is sensitive to contour roughness), the algorithm computes `area / enclosingCircleArea`. A perfect circle scores 1.0, and values above 0.75 indicate a round shape. This is more robust than the previous approach.
+```text
+Shape-classification accuracy =
+(Correct shape classifications / Total test images) × 100%
+```
 
----
+The program console labels its aggregate result as “Overall accuracy”; this report uses the manually checked result below. It is important to distinguish this geometric shape accuracy from the final YOLO 49-class recognition accuracy, which will be evaluated separately.
 
-## 4.4.2 Results
+## 4.4.6 Results
 
-### Accuracy Summary
+The shape-detection module correctly classified 78 of the 84 supplied images. Six images produced an incorrect shape result. The measured shape-classification accuracy is therefore:
 
-*(Fill in these numbers after running the code)*
+```text
+(78 / 84) × 100% = 92.9%
+```
 
-| Color Category | Total Images | Detected | Accuracy |
-| :--- | :--- | :--- | :--- |
-| Red Signs | 28 | __ | __% |
-| Blue Signs | 28 | __ | __% |
-| Yellow Signs | 28 | __ | __% |
-| **Overall** | **85** | **80** | **94.1%** |
+| Colour category | Total images | Correct shapes | Incorrect shapes | Shape-classification accuracy |
+|---|---:|---:|---:|---:|
+| Red Signs | 28 | 25 | 3 | 89.3% |
+| Blue Signs | 28 | 26 | 2 | 92.9% |
+| Yellow Signs | 28 | 27 | 1 | 96.4% |
+| **Overall** | **84** | **78** | **6** | **92.9%** |
 
-### Shape Breakdown
+The result is strong for a preliminary classical computer-vision method, but it is limited to geometric shape detection. A correct Circle, Triangle or Rectangle result does not identify the exact traffic-sign meaning. The six-panel grids saved in `preliminary/member4_shape_detection/output/` provide visual evidence of the mask, selected contour and final result.
 
-| Shape | Count |
-| :--- | :--- |
-| Circle | __ |
-| Triangle | __ |
-| Rectangle | __ |
-| Octagon | __ |
-| Polygon | __ |
+## 4.4.7 Error Analysis
 
-### Sample Results
+The six error grids were inspected. The failure cases show that the dominant cause is not Canny edge detection, because Canny is only displayed for visual explanation. The actual cause is an imperfect HSV mask: background pixels of a similar colour merge with the sign or the sign boundary becomes irregular. The distorted mask then changes the vertices, extent or circle-fill value used by `classifyShape()`.
 
-*(Insert 3–4 representative screenshots from the `output/` folder here. Each grid image shows 6 panels: Original → Contours → Largest Contour → Mask → Shape Name → Sign Segmented)*
+| Category | File | Expected shape | Output shape | Verified reason |
+|---|---|---|---|---|
+| Red | `000_1_0002.png` | Circle | Octagon | The red ring is segmented as a slightly irregular rounded contour. The strict polygon approximation retains 7–9 vertices, so the circle is routed to the Octagon branch. |
+| Red | `005_0030.png` | Circle | Polygon | Red background/signboard pixels connect to the circular ring in the HSV mask. The selected contour is no longer round, so it fails the circle-fill threshold. |
+| Red | `017_1_0017.png` | Circle | Polygon | Pixelation and red-mask noise around the sign produce a rough contour. Its circle-fill value falls below 0.60 and it reaches the Polygon fallback. |
+| Blue | `023_1_0005.png` | Circle | Polygon | Strong glare and low contrast leave an incomplete, deformed blue mask; the result does not preserve a stable circular boundary. |
+| Blue | `027_0012.png` | Circle | Rectangle | Blue background/nearby pixels merge with the roundabout sign. The enlarged contour has four loose vertices and sufficient extent, so the rectangle branch is selected. |
+| Yellow | `038_0008.png` | Triangle | Octagon | Yellow/green vegetation pixels attach to the triangular mask. The distorted contour does not simplify to three vertices; its strict approximation falls in the 7–9-vertex range, producing Octagon. |
 
-**Example 1: Successful circle detection (Red sign)**
-*(Insert screenshot: output/Red Signs/Grid_002_0036.png)*
+### Error Patterns and Future Improvements
 
-**Example 2: Successful triangle detection (Yellow sign)**
-*(Insert screenshot: output/Yellow Signs/Grid_xxx.png)*
+1. **Red circular signs:** Pixelation and neighbouring red objects can lower the circle-fill value or create an octagon-like polygon approximation. More contour smoothing or a modestly lower circularity threshold could recover some circles, but the threshold must be retested because it may increase false positives.
+2. **Blue signs:** Glare, faded blue pixels and sky/background colours can cause incomplete masks or merge external regions with the sign. Adaptive HSV saturation/value thresholds, illumination normalisation and a colour-specific connected-component selection method could reduce this problem.
+3. **Yellow warning signs:** Yellow vegetation/background pixels can join the mask and corrupt the triangle contour. A yellow-specific mask refinement, stronger separation of connected components, or a secondary `minAreaRect`/triangle-angle check could improve the result.
 
-**Example 3: Successful rectangle detection (Blue sign)**
-*(Insert screenshot: output/Blue Signs/Grid_xxx.png)*
+These improvements are proposed for future experimentation only. The current preliminary C++ code remains unchanged because the reported 92.9% result is based on its existing tuned parameters.
 
----
+## 4.4.8 Parameters and Justification
 
-## 4.4.3 Error Analysis (94.1% Accuracy / 80 of 85 Images)
+| Parameter | Code value | Purpose |
+|---|---:|---|
+| Static output size | 300 × 300 | Consistent six-panel output |
+| Gaussian blur | 5 × 5 | Smooth Canny visualisation only |
+| Canny thresholds | 50, 150 | Edge visualisation only |
+| Morphology kernel | 3 × 3 rectangle | Removes small mask noise and fills holes |
+| Static aspect ratio | 0.5–1.5 | Rejects highly elongated blobs |
+| Static solidity | 0.50 red/blue; 0.40 yellow | Retains solid sign-like masks while allowing yellow variation |
+| Static contour area | > 500 px² | Rejects small regions |
+| Loose polygon epsilon | 3.5% of perimeter | Triangle/rectangle decision |
+| Strict polygon epsilon | 1% of perimeter | Octagon/circle distinction |
+| Circle-fill threshold | > 0.60 | Identifies sufficiently round contours |
+| Camera contour area | > 3000 px² | Reduces small live-video false detections |
+| Camera stability | 3 frames | Reduces flickering labels |
 
-After applying bounding box extent logic and dynamically tuning the solidity threshold, the algorithm successfully classified **80 out of 85** images (approx. **94.1%** accuracy). There are only **5 hard failures** remaining across the dataset due to extreme environmental factors. 
+## 4.4.9 Limitations and Final-System Link
 
-### 1. Red Signs: Circularity Truncation (2 Failures)
-**Failed Images (Classified as `Polygon`):** `005_0030.png`, `017_1_0017.png`
-**The Problem:** These two speed limit signs are severely pixelated and noisy along the edges in the HSV mask. Even with smoothing applied, their calculated `circularity` score dropped just below the `0.60` threshold (scoring around `0.54 - 0.58`), causing them to default to `Polygon`.
-**Solution:** Lower the circularity threshold slightly further to `0.50` or apply stronger pre-smoothing exclusively for circularity calculations.
+HSV thresholding can produce noise or miss signs under glare, shadows, faded paint, motion blur, occlusion, perspective distortion or backgrounds with similar colours. The static program uses the largest valid contour, so it is not designed for multiple signs in one image. The camera program similarly selects the best valid candidate in each frame. These are expected limitations of a classical colour-and-shape approach.
 
-### 2. Blue Signs: Mask Bleeding (1 Failure)
-**Failed Images (Classified as `Polygon`):** `023_1_0005.png`
-**The Problem:** This sign suffered severe background bleeding (the sky/background matched the blue sign perfectly). The resulting contour was massively irregular, dropping its circularity down to `0.44`, causing it to default to `Polygon`.
-**Solution:** Use an adaptive HSV saturation threshold for blue to prevent the sky from bleeding into the sign mask.
-
-### 3. Yellow Signs: Octagon False Positives & Solidity Rejection (2 Failures)
-**Failed Images:** `038_0008.png` (`Octagon`), `048_0004.png` (`No Shape`)
-**The Problem:** 
-1. **Octagon False Positive:** `038_0008.png` is a noisy triangle with rounded edges. Because its circularity was > `0.60`, it triggered the strict vertex check which yielded 8 vertices, falsely classifying it as an `Octagon`.
-2. **No Shape Rejection:** `048_0004.png` had a solidity of exactly `0.44`. Initial versions of the algorithm hardcoded solidity at > `0.50`, completely rejecting the sign as background noise.
-**Solution:** The logic has since been updated to implement an `extent > 0.70` check for round shapes to filter out triangles, and the solidity threshold is now dynamically lowered to `0.40` for yellow signs since they bleed more into the background.
-
----
-
-## 4.4.4 Parameters and Justification
-
-| Parameter | Value | Justification |
-| :--- | :--- | :--- |
-| HSV Saturation threshold | ≥ 60–102 (varies by color) | Filters out dull backgrounds while retaining vivid sign colors |
-| Morphological kernel size | 3×3 | Small enough to preserve sign edges, large enough to remove noise dots |
-| Minimum contour area | 500 px² | Filters out tiny noise contours while retaining distant signs |
-| Loose approxPolyDP epsilon | 4% of perimeter | Reduces vertices enough to detect triangles (3) and rectangles (4) |
-| Strict approxPolyDP epsilon | 1% of perimeter | Preserves enough vertices to distinguish octagons (7–9) from circles |
-| Circularity threshold | 0.75 | Empirically separates round shapes (circle/octagon) from angular shapes |
-
----
-
-## 4.4.5 Enhancements Over Initial Version
-
-The initial version of this module used raw Canny edge detection on the full grayscale image, which resulted in very low accuracy due to background noise. The following enhancements were made:
-
-| Enhancement | Before | After | Impact |
-| :--- | :--- | :--- | :--- |
-| **HSV Color Segmentation** | Canny on raw grayscale (detects trees, road, sky edges) | HSV mask isolates only sign-colored pixels | Eliminates ~95% of background noise |
-| **Morphological OPEN + CLOSE** | Simple dilation only | OPEN removes noise, CLOSE fills holes | Produces cleaner, more complete sign masks |
-| **Largest Contour Selection** | All contours drawn with NMS | Only the largest contour is selected | Eliminates duplicate/overlapping detections |
-| **MinEnclosingCircle Circularity** | Perimeter-based circularity only | `area / enclosingCircleArea` ratio | More robust circle vs octagon distinction |
-| **Dual Epsilon Approximation** | Single ε = 2% | Loose ε = 4% + Strict ε = 1% | Better vertex count accuracy for all shape types |
-| **6-Panel Grid Output** | 2×2 grid (grayscale, blur, edges, result) | 3×2 grid (original, contours, largest, mask, shape, segmented) | Matches the lecturer's reference format for report |
-| **Accuracy Statistics** | No statistics printed | Per-folder and overall accuracy with shape breakdown | Ready for direct inclusion in report |
-
----
-
-## 4.4.6 Future Work
-
-To further increase the accuracy of detection beyond the current results, the following improvements can be explored:
-
-1. **Integrating shape detection with the other members' color segmentation modules.** By combining Member 1's red segmentation, Member 2's blue segmentation, and Member 3's yellow segmentation with this shape detection module, the system can achieve a more robust pipeline where color and shape mutually validate each other.
-
-2. **Adaptive HSV thresholds.** Instead of using fixed HSV ranges, the system could dynamically adjust the saturation and value thresholds based on the overall image brightness (e.g., using histogram analysis). This would improve performance under varying lighting conditions.
-
-3. **Deep learning replacement.** As demonstrated in our literature review (Chapter 2), modern YOLOv8-based approaches can achieve significantly higher accuracy than traditional image processing. The low accuracy of this preliminary work strongly justifies the need for our proposed deep learning architecture described in Chapter 3.
+The next phase is to collect and annotate sufficient images for all 49 target classes, apply realistic training-only augmentation, and fine-tune YOLO26s at a 640-pixel baseline. YOLO26s will provide final bounding-box detection and pictogram/class recognition, while the OpenCV results remain useful for preliminary validation and an explainable presentation. The trained model will be exported to OpenVINO for the Intel laptop/server deployment and compared with YOLO26n only if the measured latency or web concurrency is too high.

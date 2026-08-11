@@ -1,5 +1,5 @@
 // ============================================
-// [Member 4] shape_detection.cpp
+// [Member 4] camera_detection.cpp
 // ============================================
 // Module: Shape Detection of Traffic Signs
 // Owner: Member 4
@@ -33,7 +33,6 @@
 #include <filesystem>
 #include <cmath>
 #include <algorithm>
-#include <iomanip>
 
 namespace fs = std::filesystem;
 
@@ -159,8 +158,8 @@ std::string classifyShape(const std::vector<cv::Point>& contour) {
 // Main pipeline for one image.
 // Creates a 6-panel grid output (matching the
 // lecturer's reference format):
-//   [Original | Grayscale | Canny Edges]
-//   [Color Mask | Shape | Sign Segmented]
+//   [Original | Contours | Largest Contour]
+//   [Mask     | Shape    | Sign Segmented ]
 // Returns the shape name detected (for statistics).
 // ============================================
 std::string processImage(const cv::Mat& src, const std::string& filename,
@@ -196,10 +195,10 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
     cv::cvtColor(gray, p2, cv::COLOR_GRAY2BGR);
     cv::Mat p3;                                  // Canny Edges
     cv::cvtColor(edges, p3, cv::COLOR_GRAY2BGR);
-    
+
     cv::Mat p4;                                  // The Color Mask used
     cv::cvtColor(colorMask, p4, cv::COLOR_GRAY2BGR);
-    
+
     cv::Mat p5 = black.clone();                  // Shape (filled green)
     cv::Mat p6 = black.clone();                  // Segmented sign
 
@@ -213,24 +212,24 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
         double maxArea = 0;
         for (int i = 0; i < (int)contours.size(); i++) {
             double a = cv::contourArea(contours[i]);
-            
+
             // 2. Fix Background Noise: Geometric Filters
             cv::Rect box = cv::boundingRect(contours[i]);
             float aspectRatio = (float)box.width / (float)box.height;
-            
+
             // Only consider contours that are roughly square-shaped (real signs)
             if (aspectRatio > 0.5 && aspectRatio < 1.5) {
-                
-                // Solidity check: (Contour Area / Convex Hull Area). 
+
+                // Solidity check: (Contour Area / Convex Hull Area).
                 // A real sign is solid, not a bunch of disconnected spider legs.
                 std::vector<cv::Point> hull;
                 cv::convexHull(contours[i], hull);
                 double hullArea = cv::contourArea(hull);
                 double solidity = (hullArea > 0) ? (a / hullArea) : 0;
-                
+
                 // Yellow signs bleed into the background more, so they need a lower solidity threshold
                 double requiredSolidity = (colorType == "Yellow Signs") ? 0.40 : 0.50;
-                
+
                 // If it's highly solid and larger than our current max
                 if (solidity > requiredSolidity && a > maxArea) {
                     maxArea = a;
@@ -296,131 +295,235 @@ std::string processImage(const cv::Mat& src, const std::string& filename,
     return shapeName;
 }
 
+// ============================================
+// Camera-only white balance
+// Limited correction to avoid over-correction
+// ============================================
+cv::Mat cameraWhiteBalance(const cv::Mat& src) {
+    cv::Mat result;
+    src.convertTo(result, CV_32FC3);
 
+    cv::Scalar avg = cv::mean(result);
 
+    double avgB = avg[0];
+    double avgG = avg[1];
+    double avgR = avg[2];
+
+    double avgGray = (avgB + avgG + avgR) / 3.0;
+
+    double gainB = avgGray / (avgB + 1e-6);
+    double gainG = avgGray / (avgG + 1e-6);
+    double gainR = avgGray / (avgR + 1e-6);
+
+    // Limit correction
+    gainB = std::clamp(gainB, 0.80, 1.25);
+    gainG = std::clamp(gainG, 0.80, 1.25);
+    gainR = std::clamp(gainR, 0.80, 1.25);
+
+    std::vector<cv::Mat> channels;
+    cv::split(result, channels);
+
+    channels[0] *= gainB;
+    channels[1] *= gainG;
+    channels[2] *= gainR;
+
+    cv::merge(channels, result);
+
+    result.convertTo(result, CV_8UC3);
+
+    return result;
+}
+
+// ============================================
+// Function: runCameraDemo
+// ============================================
+// Opens the webcam and performs real-time
+// shape and color detection.
+// ============================================
+void runCameraDemo() {
+    cv::VideoCapture cap(0);
+    if (!cap.isOpened()) {
+        std::cerr << "Error: Could not open camera." << std::endl;
+        return;
+    }
+
+    std::cout << "\n========================================" << std::endl;
+    std::cout << " LIVE CAMERA MODE ENABLED" << std::endl;
+    std::cout << "========================================" << std::endl;
+    std::cout << " Press 'q' or ESC to quit." << std::endl;
+    std::cout << " Press 'm' to toggle split-screen mask view." << std::endl;
+    std::cout << "----------------------------------------" << std::endl;
+
+    bool showMask = false;
+    std::vector<std::string> colors = { "Red Signs", "Blue Signs", "Yellow Signs" };
+
+    std::string stableShape = "";
+    std::string stableColor = "";
+    cv::Rect stableBox;
+    int stableFrames = 0;
+    const int REQUIRED_STABLE_FRAMES = 3;
+
+    cv::namedWindow("Live Shape & Color Detection", cv::WINDOW_NORMAL);
+    cv::resizeWindow("Live Shape & Color Detection", 800, 600);
+
+    while (true) {
+        cv::Mat frame;
+        cap >> frame;
+        if (frame.empty()) break;
+
+        cv::resize(frame, frame, cv::Size(640, 480));
+
+        // Camera-only illumination correction
+        cv::Mat correctedFrame = cameraWhiteBalance(frame);
+
+        cv::Mat display = frame.clone();
+        cv::Mat allMasks = cv::Mat::zeros(frame.size(), CV_8UC1);
+        cv::Mat allContours = cv::Mat::zeros(frame.size(), CV_8UC3);
+
+        double bestCandidateArea = 0;
+        std::string bestCandidateShape = "";
+        std::string bestCandidateColor = "";
+        cv::Rect bestCandidateBox;
+
+        for (const auto& color : colors) {
+            cv::Mat mask = getColorMask(correctedFrame, color);
+            cv::bitwise_or(allMasks, mask, allMasks);
+
+            std::vector<std::vector<cv::Point>> contours;
+            cv::findContours(mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+            // Draw all detected contours for the split-screen view
+            cv::drawContours(allContours, contours, -1, cv::Scalar(255, 0, 255), 2);
+
+            for (const auto& contour : contours) {
+                double area = cv::contourArea(contour);
+                // 1. Increase minimum area to avoid small background noise
+                if (area > 3000) {
+
+                    // 2. Add Aspect Ratio check (real signs are mostly square-ish proportions)
+                    cv::Rect box = cv::boundingRect(contour);
+                    float aspectRatio = (float)box.width / (float)box.height;
+
+                    // Most signs (circles, triangles, octagons) have an aspect ratio between 0.6 and 1.4
+                    if (aspectRatio > 0.5 && aspectRatio < 1.5) {
+
+                        // Solidity check: (Contour Area / Convex Hull Area).
+                        // A real sign is solid, not a bunch of disconnected spider legs.
+                        std::vector<cv::Point> hull;
+                        cv::convexHull(contour, hull);
+                        double hullArea = cv::contourArea(hull);
+                        double solidity = (hullArea > 0) ? (area / hullArea) : 0;
+
+                        // Yellow signs bleed into the background more, so they need a lower solidity threshold
+                        double requiredSolidity = (color == "Yellow Signs") ? 0.40 : 0.50;
+
+                        // Only proceed if it is highly solid
+                        if (solidity > requiredSolidity) {
+                            std::string shape = classifyShape(contour);
+
+                            // 3. Ignore generic polygons (usually background noise)
+                            if (shape != "Polygon") {
+                                if (area > bestCandidateArea) {
+                                    bestCandidateArea = area;
+                                    bestCandidateShape = shape;
+                                    bestCandidateColor = color;
+                                    bestCandidateBox = box;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (bestCandidateArea > 0) {
+            if (bestCandidateShape == stableShape && bestCandidateColor == stableColor) {
+                stableFrames++;
+                stableBox = bestCandidateBox;
+            } else {
+                stableShape = bestCandidateShape;
+                stableColor = bestCandidateColor;
+                stableBox = bestCandidateBox;
+                stableFrames = 1;
+            }
+        } else {
+            stableFrames = 0;
+            stableShape = "";
+            stableColor = "";
+        }
+
+        if (stableFrames >= REQUIRED_STABLE_FRAMES) {
+            cv::Scalar boxColor;
+            std::string colorName;
+            if (stableColor == "Red Signs") { boxColor = cv::Scalar(0, 0, 255); colorName = "Red"; }
+            else if (stableColor == "Blue Signs") { boxColor = cv::Scalar(255, 0, 0); colorName = "Blue"; }
+            else { boxColor = cv::Scalar(0, 255, 255); colorName = "Yellow"; }
+
+            // Draw bounding box and label
+            cv::rectangle(display, stableBox, boxColor, 2);
+            std::string label = colorName + " " + stableShape;
+
+            // Add background box for text readability
+            int baseline = 0;
+            cv::Size textSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.6, 2, &baseline);
+            cv::rectangle(display, cv::Point(stableBox.x, stableBox.y - textSize.height - 10),
+                          cv::Point(stableBox.x + textSize.width, stableBox.y), boxColor, cv::FILLED);
+            cv::Scalar textColor = (stableColor == "Yellow Signs") ? cv::Scalar(0, 0, 0) : cv::Scalar(255, 255, 255);
+            cv::putText(display, label, cv::Point(stableBox.x, stableBox.y - 5),
+                cv::FONT_HERSHEY_SIMPLEX, 0.6, textColor, 2);
+        }
+
+        if (showMask) {
+            cv::Mat p1, p2, p3, p4;
+
+            // Resize each panel to half size so the 2x2 grid fits perfectly on screen (320x240 each)
+            cv::Size halfSize(frame.cols / 2, frame.rows / 2);
+            cv::resize(frame, p1, halfSize);
+
+            cv::Mat colorMasks;
+            cv::cvtColor(allMasks, colorMasks, cv::COLOR_GRAY2BGR);
+            cv::resize(colorMasks, p2, halfSize);
+
+            cv::resize(allContours, p3, halfSize);
+            cv::resize(display, p4, halfSize);
+
+            // Add titles to panels
+            cv::putText(p1, "1. Original", cv::Point(10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255,255,255), 2);
+            cv::putText(p2, "2. HSV Mask", cv::Point(10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255,255,255), 2);
+            cv::putText(p3, "3. Contours", cv::Point(10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255,255,255), 2);
+            cv::putText(p4, "4. Final Output", cv::Point(10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0,255,0), 2);
+
+            // Construct the 2x2 grid
+            cv::Mat topRow, bottomRow, grid;
+            cv::hconcat(std::vector<cv::Mat>{p1, p2}, topRow);
+            cv::hconcat(std::vector<cv::Mat>{p3, p4}, bottomRow);
+            cv::vconcat(topRow, bottomRow, grid);
+
+            cv::imshow("Live Shape & Color Detection", grid);
+        }
+        else {
+            cv::imshow("Live Shape & Color Detection", display);
+        }
+
+        char key = (char)cv::waitKey(30);
+        if (key == 'q' || key == 27) break;
+        if (key == 'm') showMask = !showMask;
+    }
+
+    cap.release();
+    cv::destroyAllWindows();
+}
 
 // ============================================
 // Main Function
 // ============================================
+// ============================================
 int main(int argc, char** argv) {
     std::cout << "========================================" << std::endl;
-    std::cout << " Member 4: Shape Detection Module" << std::endl;
+    std::cout << " Member 4: Camera Shape Detection" << std::endl;
     std::cout << " MYSignVoice Preliminary Work" << std::endl;
     std::cout << "========================================" << std::endl;
 
-    // Path to the Color Inputs folder
-    std::string baseDir = "../../Color Inputs";
-    std::string outputDir = "output";
-    fs::create_directories(outputDir);
-
-    // Subdirectories containing the 85 test images
-    std::vector<std::string> subfolders = { "Red Signs", "Blue Signs", "Yellow Signs" };
-
-    bool showSteps = false;
-    
-    // Check for arguments
-    if (argc > 1) {
-        std::string arg = argv[1];
-
-        if (arg == "--show") {
-            showSteps = true;
-            std::cout << "Mode: Step-by-step visualization enabled" << std::endl;
-        }
-    }
-
-    int totalImages = 0;
-    int totalDetected = 0;   // Images where at least one shape was detected
-    int totalCircle = 0, totalTriangle = 0, totalRect = 0, totalOctagon = 0, totalPolygon = 0;
-
-    for (const auto& subfolder : subfolders) {
-        std::string folderPath = baseDir + "/" + subfolder;
-        std::cout << "\nProcessing folder: " << subfolder << std::endl;
-        std::cout << "----------------------------------------" << std::endl;
-
-        if (!fs::exists(folderPath)) {
-            std::cerr << "  ERROR: Folder not found: " << folderPath << std::endl;
-            continue;
-        }
-
-        // Create output subfolder
-        std::string outSubfolder = outputDir + "/" + subfolder;
-        fs::create_directories(outSubfolder);
-
-        int folderTotal = 0, folderDetected = 0;
-
-        for (const auto& entry : fs::directory_iterator(folderPath)) {
-            if (!entry.is_regular_file()) continue;
-
-            std::string ext = entry.path().extension().string();
-            if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".bmp") continue;
-
-            std::string filepath = entry.path().string();
-            std::string filename = entry.path().filename().string();
-
-            cv::Mat img = cv::imread(filepath);
-            if (img.empty()) {
-                std::cerr << "  WARNING: Could not read " << filename << std::endl;
-                continue;
-            }
-
-            totalImages++;
-            folderTotal++;
-
-            // Build output path
-            std::string outputPath = outSubfolder + "/Grid_" + filename;
-
-            // Process the image (pass colorType = subfolder name)
-            std::string shape = processImage(img, filename, subfolder, outputPath, showSteps);
-
-            if (shape == "Circle") {
-                totalDetected++;
-                folderDetected++;
-                totalCircle++;
-            }
-            else if (shape == "Triangle") {
-                totalDetected++;
-                folderDetected++;
-                totalTriangle++;
-            }
-            else if (shape == "Rectangle") {
-                totalDetected++;
-                folderDetected++;
-                totalRect++;
-            }
-            else if (shape == "Octagon") {
-                totalDetected++;
-                folderDetected++;
-                totalOctagon++;
-            }
-            else if (shape == "Polygon") {
-                totalPolygon++;
-            }
-        }
-
-        // Per-folder statistics
-        double folderAcc = (folderTotal > 0) ? (100.0 * folderDetected / folderTotal) : 0;
-        std::cout << "  " << subfolder << ": " << folderDetected << "/" << folderTotal
-            << " detected (" << std::fixed << std::setprecision(1) << folderAcc << "%)" << std::endl;
-    }
-
-    // Overall statistics
-    double overallAcc = (totalImages > 0) ? (100.0 * totalDetected / totalImages) : 0;
-    std::cout << "\n========================================" << std::endl;
-    std::cout << " RESULTS SUMMARY" << std::endl;
-    std::cout << "========================================" << std::endl;
-    std::cout << " Total images processed: " << totalImages << std::endl;
-    std::cout << " Total shapes detected:  " << totalDetected << std::endl;
-    std::cout << " Overall accuracy:       " << std::fixed << std::setprecision(1) << overallAcc << "%" << std::endl;
-    std::cout << "----------------------------------------" << std::endl;
-    std::cout << " Shape breakdown:" << std::endl;
-    std::cout << "   Circle:    " << totalCircle << std::endl;
-    std::cout << "   Triangle:  " << totalTriangle << std::endl;
-    std::cout << "   Rectangle: " << totalRect << std::endl;
-    std::cout << "   Octagon:   " << totalOctagon << std::endl;
-    std::cout << "   Polygon:   " << totalPolygon << std::endl;
-    std::cout << "========================================" << std::endl;
-    std::cout << " Grid images saved to: " << outputDir << "/" << std::endl;
-    std::cout << "========================================" << std::endl;
-
+    runCameraDemo();
     return 0;
 }

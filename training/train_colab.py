@@ -1,30 +1,208 @@
-# ============================================
-# [Member 4] train_colab.py
-# ============================================
-# Module: YOLOv8-nano Training Script (for Google Colab)
-# Owner: Member 4 (ML & Evaluation Lead)
-#
-# Purpose:
-#   - Train YOLOv8-nano on Malaysian road sign dataset
-#   - Designed to run on Google Colab with free T4 GPU
-#   - Steps:
-#       1. Install ultralytics
-#       2. Mount Google Drive
-#       3. Load dataset from Drive
-#       4. Train YOLOv8n with:
-#           epochs=100, imgsz=640, batch=16, patience=20
-#       5. Save best model to Drive
-#       6. Show training metrics (mAP, loss curves)
-#       7. Run validation and show confusion matrix
-#
-# Usage (in Colab):
-#   !python train_colab.py
-#   OR copy cells into Colab notebook
-#
-# References:
-#   - Ultralytics docs: https://docs.ultralytics.com/
-#   - See plan.md → Google Colab Training Guide
-#   - See plan.md → Member 4 Prompt: YOLO Training on Google Colab
-#
-# TODO: Implement training script
-# ============================================
+"""Train MYSignVoice's verified 49-class dataset in Google Colab.
+
+Run after mounting Google Drive and installing the current project dependencies:
+
+    !pip install "ultralytics>=8.4.90,<9" roboflow pyyaml openvino onnx onnxruntime
+    !python train_colab.py --api-key "$ROBOFLOW_API_KEY" \
+      --workspace "your-workspace" --project "mysignvoice-49-signs" --version 1
+
+The script downloads the selected Roboflow version to Colab's local disk, checks
+that its class names and order exactly match dataset/data.yaml, trains YOLO26s
+by default, exports ONNX and OpenVINO models for web/Intel CPU deployment, and
+then copies the complete run to Google Drive.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+from collections import Counter
+from pathlib import Path
+
+import yaml
+from ultralytics import YOLO
+
+
+EXPECTED_CLASSES = [
+    "straight-or-right", "straight-only", "basement-entrance", "left-turn-only",
+    "left-or-right", "right-turn-only", "pass-right", "roundabout", "cars-only",
+    "use-horn", "bicycle-path", "uturn-lane", "speed-limit-5", "speed-limit-15",
+    "speed-limit-30", "speed-limit-40", "speed-limit-50", "speed-limit-60",
+    "speed-limit-80", "no-straight-or-left", "no-straight", "no-left",
+    "no-left-and-right", "no-right", "no-overtaking", "no-uturn", "no-cars",
+    "no-horn", "traffic-light-ahead", "stop-sign", "no-entry", "give-way",
+    "stop-for-inspection", "pass-obstacle-on-either-side", "general-warning",
+    "pedestrian-crossing-warning", "bicycle-warning", "children-crossing-warning",
+    "sharp-right-turn-warning", "steep-descent-warning", "slowdown-warning",
+    "t-intersection-right-warning", "village-ahead-warning", "winding-road-warning",
+    "railway-crossing-ahead-warning", "construction-ahead-warning",
+    "slippery-road-warning", "gated-railway-crossing-ahead-warning",
+    "accident-prone-area-warning",
+]
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--api-key", default=os.getenv("ROBOFLOW_API_KEY"),
+                        help="Roboflow API key. Defaults to ROBOFLOW_API_KEY.")
+    parser.add_argument("--workspace", required=True, help="Roboflow workspace slug.")
+    parser.add_argument("--project", required=True, help="Roboflow project slug.")
+    parser.add_argument("--version", required=True, type=int, help="Generated Roboflow version.")
+    parser.add_argument("--dataset-dir", type=Path, default=Path("/content/mysignvoice_dataset"))
+    parser.add_argument("--run-dir", type=Path, default=Path("/content/mysignvoice_runs"))
+    parser.add_argument("--drive-dir", type=Path,
+                        default=Path("/content/drive/MyDrive/TrafficSignProject/training_runs"))
+    parser.add_argument(
+        "--model",
+        default="yolo26s.pt",
+        help="Pretrained Ultralytics detection weights (default: yolo26s.pt).",
+    )
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional run folder name. Defaults to a model/version-specific name.",
+    )
+    parser.add_argument("--epochs", type=int, default=150)
+    parser.add_argument("--imgsz", type=int, default=640)
+    parser.add_argument("--batch", type=int, default=16)
+    return parser.parse_args()
+
+
+def normalise_names(names: list[str] | dict) -> list[str]:
+    """Return YOLO names as an ordered list, accepting YAML list or ID dictionary."""
+    if isinstance(names, list):
+        return names
+    if isinstance(names, dict):
+        return [names[index] if index in names else names[str(index)] for index in range(len(names))]
+    raise ValueError("data.yaml has no usable 'names' list or dictionary.")
+
+
+def validate_dataset_config(data_yaml: Path) -> None:
+    with data_yaml.open("r", encoding="utf-8") as stream:
+        config = yaml.safe_load(stream)
+
+    names = normalise_names(config.get("names", []))
+    if config.get("nc") != len(EXPECTED_CLASSES) or names != EXPECTED_CLASSES:
+        actual = "\n".join(f"  {index}: {name}" for index, name in enumerate(names))
+        expected = "\n".join(f"  {index}: {name}" for index, name in enumerate(EXPECTED_CLASSES))
+        raise ValueError(
+            "Roboflow's exported class list does not match the locked 49-class inventory.\n"
+            "Fix the Roboflow class names/order, generate a new version, then rerun.\n\n"
+            f"Expected:\n{expected}\n\nExported:\n{actual}"
+        )
+    print("Class-list check passed: 49 class names and IDs match the project inventory.")
+
+
+def report_label_counts(dataset_root: Path) -> None:
+    """Show per-class label counts and flag classes unsuitable for meaningful metrics."""
+    counts: Counter[int] = Counter()
+    split_counts: dict[str, int] = {}
+    for split in ("train", "valid", "val", "test"):
+        label_dir = dataset_root / split / "labels"
+        if not label_dir.is_dir():
+            continue
+        label_files = list(label_dir.glob("*.txt"))
+        split_counts[split] = len(label_files)
+        for label_file in label_files:
+            for line in label_file.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    counts[int(line.split()[0])] += 1
+
+    print(f"Split label files: {split_counts}")
+    scarce = []
+    for class_id, class_name in enumerate(EXPECTED_CLASSES):
+        count = counts[class_id]
+        print(f"{class_id:>2}  {class_name:<42} {count:>4} boxes")
+        if count < 5:
+            scarce.append(class_name)
+    if scarce:
+        print("\nWARNING: Classes with fewer than 5 labelled boxes:")
+        print(", ".join(scarce))
+        print("Collect more original photographs before treating validation/test metrics as reliable.")
+
+
+def main() -> None:
+    args = parse_args()
+    if not args.api_key:
+        raise SystemExit("Missing API key. Pass --api-key or set ROBOFLOW_API_KEY.")
+
+    try:
+        from roboflow import Roboflow
+    except ImportError as exc:
+        raise SystemExit(
+            "The Roboflow package is required. In Colab run: pip install roboflow"
+        ) from exc
+
+    model_stem = Path(args.model).stem
+    run_name = args.run_name or f"{model_stem}_49class_rf_v{args.version}"
+
+    rf = Roboflow(api_key=args.api_key)
+    version = rf.workspace(args.workspace).project(args.project).version(args.version)
+    dataset = version.download(model_format="yolov8", location=str(args.dataset_dir))
+    dataset_root = Path(dataset.location)
+    data_yaml = dataset_root / "data.yaml"
+    if not data_yaml.is_file():
+        raise FileNotFoundError(f"Roboflow export did not contain data.yaml: {data_yaml}")
+
+    validate_dataset_config(data_yaml)
+    report_label_counts(dataset_root)
+
+    model = YOLO(args.model)
+    model.train(
+        data=str(data_yaml),
+        epochs=args.epochs,
+        imgsz=args.imgsz,
+        batch=args.batch,
+        patience=30,
+        project=str(args.run_dir),
+        name=run_name,
+        exist_ok=True,
+        cache=True,
+        plots=True,
+        # Geometric/colour augmentation is safe; horizontal flipping is not because
+        # it changes the meaning of left/right/turn traffic signs.
+        hsv_h=0.015,
+        hsv_s=0.50,
+        hsv_v=0.30,
+        degrees=8,
+        translate=0.05,
+        scale=0.25,
+        fliplr=0.0,
+        flipud=0.0,
+        mosaic=0.50,
+        close_mosaic=10,
+    )
+
+    local_run = args.run_dir / run_name
+    best_model = local_run / "weights" / "best.pt"
+    if not best_model.is_file():
+        raise FileNotFoundError(f"Training finished without best.pt at {best_model}")
+
+    # Export before copying so Drive contains the PyTorch checkpoint plus portable
+    # ONNX and Intel-CPU-friendly OpenVINO artifacts for the web backend.
+    export_model = YOLO(str(best_model))
+    onnx_export = Path(
+        export_model.export(
+            format="onnx", imgsz=args.imgsz, simplify=True, end2end=True
+        )
+    )
+    openvino_export = Path(
+        export_model.export(format="openvino", imgsz=args.imgsz, end2end=True)
+    )
+    if not onnx_export.is_file():
+        raise FileNotFoundError(f"ONNX export was not created: {onnx_export}")
+    if not openvino_export.is_dir():
+        raise FileNotFoundError(f"OpenVINO export was not created: {openvino_export}")
+
+    drive_run = args.drive_dir / run_name
+    drive_run.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(local_run, drive_run, dirs_exist_ok=True)
+    print(f"\nTraining complete. Full run copied to: {drive_run}")
+    print(f"Best PyTorch model: {drive_run / 'weights' / 'best.pt'}")
+    print(f"ONNX web model: {drive_run / 'weights' / onnx_export.name}")
+    print(f"OpenVINO Intel CPU model: {drive_run / 'weights' / openvino_export.name}")
+
+
+if __name__ == "__main__":
+    main()

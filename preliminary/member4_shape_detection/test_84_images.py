@@ -1,8 +1,12 @@
 # ============================================
 # [Member 4] test_84_images.py — HYBRID VERSION
 # ============================================
+# ARCHIVED PRELIMINARY TEST: this script uses the old test-only checkpoint and
+# its results do not validate the canonical 49-class YOLO26s system. Use
+# benchmark_pipeline_modes.py with the newly trained 49-class best.pt instead.
+#
 # Purpose: Combine OpenCV HSV color detection
-#          with YOLOv8 deep learning to test
+#          with a legacy YOLO checkpoint to test
 #          all 84 provided images.
 #
 # Pipeline:
@@ -306,7 +310,7 @@ def main():
 
     # Load YOLO model
     print("=" * 60)
-    print(" MYSignVoice — HYBRID OpenCV + YOLOv8 Test on 84 Images")
+    print(" MYSignVoice — ARCHIVED Hybrid OpenCV + Legacy YOLO Test on 84 Images")
     print("=" * 60)
     print(f"Loading model: {MODEL_PATH}")
     model = YOLO(MODEL_PATH)
@@ -504,7 +508,7 @@ def main():
     # Save report to text file
     report_path = os.path.join(OUTPUT_DIR, "accuracy_report.txt")
     with open(report_path, "w", encoding="utf-8") as f:
-        f.write("MYSignVoice — Hybrid OpenCV + YOLOv8 Detection Results\n")
+        f.write("MYSignVoice — Archived Hybrid OpenCV + Legacy YOLO Results\n")
         f.write("=" * 60 + "\n")
         f.write(f"Model: {MODEL_PATH}\n")
         f.write(f"Full-image confidence threshold: {CONF_THRESHOLD}\n")

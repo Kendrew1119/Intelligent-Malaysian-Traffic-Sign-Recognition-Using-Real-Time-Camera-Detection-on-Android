@@ -1,311 +1,139 @@
-# 🚀 YOLOv8 Training with Roboflow Dataset — Complete Colab Guide
+# MYSignVoice - Google Colab Training Guide (49 Classes)
 
-> **Where**: Everything happens on **Google Colab** (free GPU)
-> **Dataset**: Malaysia Road Sign Dataset from Roboflow (9,483 images)
-> **Time**: ~45 minutes total
+This is the active server-side web deployment workflow. It trains the locked
+49-class inventory in `dataset/data.yaml` with **YOLO26s at `imgsz=640`** as
+the baseline. The training script stops before training if the exported Roboflow
+names or IDs differ from the canonical list.
 
----
+The class mapping is unchanged by the model migration. IDs are zero-based, and
+corrected class ID 33 must remain `pass-obstacle-on-either-side`.
 
-## Setup: Create a New Colab Notebook
+> **Deployment scope:** there is no Android or iOS application in the active plan.
+> `docs/android_app_guide.md` and `training/convert_to_ncnn.py` are archival
+> experiments only; do not use them for the current build or acceptance test.
 
-1. Go to **https://colab.research.google.com**
-2. Click **"New notebook"**
-3. **Runtime** → **Change runtime type** → Select **T4 GPU** → **Save**
-4. Rename notebook to: `MYSignVoice_Roboflow_Training`
+## 1. Create the Colab notebook
 
----
+1. Open Google Colab and select **Runtime -> Change runtime type -> T4 GPU**.
+2. Clone/copy the repository to `/content/miniproject`, or upload
+   `training/train_colab.py`.
+3. Keep the Roboflow API key in a Colab secret or environment variable. Never put
+   it in a Git-tracked file, notebook output, or screenshot.
 
-## Cell 1 — Verify GPU is Working
-
-```python
-# ============================================================
-# CELL 1: Verify GPU
-# ============================================================
-!nvidia-smi
-```
-
-**Expected output:** You should see "Tesla T4" in the output.
-
----
-
-## Cell 2 — Install Dependencies
+## 2. Install packages and mount Drive
 
 ```python
-# ============================================================
-# CELL 2: Install ultralytics and roboflow
-# ============================================================
-!pip install ultralytics roboflow -q
-print("✅ Installation complete!")
-```
+!pip install -q "ultralytics>=8.4.90,<9" roboflow pyyaml openvino onnx onnxruntime
 
----
-
-## Cell 3 — Mount Google Drive (to save your model)
-
-```python
-# ============================================================
-# CELL 3: Mount Google Drive
-# ============================================================
-from google.colab import drive
-drive.mount('/content/drive')
+from google.colab import drive, userdata
+drive.mount("/content/drive")
 
 import os
-save_dir = "/content/drive/MyDrive/TrafficSignProject"
-os.makedirs(save_dir, exist_ok=True)
-print(f"✅ Google Drive mounted! Model will be saved to: {save_dir}")
+os.environ["ROBOFLOW_API_KEY"] = userdata.get("ROBOFLOW_API_KEY")
 ```
 
-**Action:** A popup will appear asking you to sign in — click **Allow**.
+Create the `ROBOFLOW_API_KEY` entry in Colab's **Secrets** panel first and grant
+the notebook access. Do not paste the key directly into a code cell.
 
----
+## 3. Get the Roboflow identifiers
 
-## Cell 4 — Download the Roboflow Dataset
+Open the generated Roboflow dataset version and choose **Download Dataset -> Show
+download code**. Copy the workspace slug, project slug, and version number:
 
 ```python
-# ============================================================
-# CELL 4: Download Malaysia Road Sign Dataset from Roboflow
-# ============================================================
-import os
-
-dataset_location = "/content/dataset"
-os.makedirs(dataset_location, exist_ok=True)
-
-# Change directory, download, unzip, and remove the zip
-%cd {dataset_location}
-!curl -L "https://app.roboflow.com/ds/U63mKYkItS?key=0oIpI21top" > roboflow.zip; unzip -q roboflow.zip; rm roboflow.zip
-%cd /content
-
-print(f"\n✅ Dataset downloaded to: {dataset_location}")
+# rf.workspace("your-workspace").project("mysignvoice-49-signs").version(1)
 ```
 
-**Expected output:** The dataset will download to `/content/dataset/`
+Roboflow may call the compatible export option **YOLOv8**. That name describes the
+standard Ultralytics YOLO text-label layout; YOLO26 uses the same labels. Do not
+remap IDs by hand. Generate a corrected Roboflow version if its `data.yaml` does
+not exactly match `dataset/data.yaml`.
 
----
-
-## Cell 5 — Inspect the Dataset (IMPORTANT — send me this output!)
+## 4. Train the 640 baseline
 
 ```python
-# ============================================================
-# CELL 5: Inspect dataset structure and classes
-# ============================================================
-import yaml
+%cd /content/miniproject/training
 
-# Read the data.yaml file
-data_yaml_path = f"{dataset_location}/data.yaml"
-with open(data_yaml_path, 'r') as f:
-    data_config = yaml.safe_load(f)
-
-print("=" * 60)
-print("DATASET INFORMATION")
-print("=" * 60)
-print(f"Dataset path: {dataset_location}")
-print(f"Number of classes: {data_config.get('nc', 'unknown')}")
-print(f"\nClass names:")
-for i, name in enumerate(data_config.get('names', [])):
-    print(f"  [{i}] {name}")
-
-# Count images in each split
-for split in ['train', 'valid', 'test']:
-    img_dir = os.path.join(dataset_location, split, 'images')
-    if os.path.exists(img_dir):
-        count = len([f for f in os.listdir(img_dir) if f.endswith(('.jpg', '.png', '.jpeg'))])
-        print(f"\n{split}: {count} images")
-    else:
-        print(f"\n{split}: folder not found")
-
-print("=" * 60)
+!python train_colab.py \
+  --workspace "your-workspace" \
+  --project "mysignvoice-49-signs" \
+  --version 1 \
+  --model "yolo26s.pt" \
+  --run-name "yolo26s_640_rf_v1" \
+  --imgsz 640 \
+  --epochs 150 \
+  --batch 16
 ```
 
-> [!IMPORTANT]
-> **SEND ME THE OUTPUT OF THIS CELL!** I need to see:
-> 1. How many classes there are
-> 2. What the class names are
-> 3. How many train/val/test images
-> This tells me if the dataset is good enough or if we need adjustments.
+Use batch 8 if the Colab GPU runs out of memory. Keep `imgsz=640` for the first
+controlled run. A higher input size is a later challenger and must be tested on the
+same split and deployment hardware.
 
----
+The script downloads data to Colab local storage, validates all 49 class names,
+trains the model, exports ONNX and OpenVINO, and copies the run to:
 
-## Cell 6 — Preview Some Training Images
-
-```python
-# ============================================================
-# CELL 6: Preview a few training images with their labels
-# ============================================================
-import cv2
-import matplotlib.pyplot as plt
-import numpy as np
-import os
-
-train_img_dir = os.path.join(dataset_location, 'train', 'images')
-train_lbl_dir = os.path.join(dataset_location, 'train', 'labels')
-
-# Get class names
-class_names = data_config.get('names', [])
-
-# Show 6 random images
-img_files = sorted(os.listdir(train_img_dir))[:6]
-
-fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-fig.suptitle("Sample Training Images", fontsize=16)
-
-for idx, img_file in enumerate(img_files):
-    ax = axes[idx // 3][idx % 3]
-    img_path = os.path.join(train_img_dir, img_file)
-    img = cv2.imread(img_path)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-    # Read corresponding label
-    lbl_file = os.path.splitext(img_file)[0] + '.txt'
-    lbl_path = os.path.join(train_lbl_dir, lbl_file)
-
-    title = img_file
-    if os.path.exists(lbl_path):
-        with open(lbl_path, 'r') as f:
-            lines = f.readlines()
-        if lines:
-            cls_id = int(lines[0].split()[0])
-            if cls_id < len(class_names):
-                title = f"{img_file}\nClass: {class_names[cls_id]}"
-
-    ax.imshow(img)
-    ax.set_title(title, fontsize=9)
-    ax.axis('off')
-
-plt.tight_layout()
-plt.savefig(os.path.join(save_dir, "sample_training_images.png"), dpi=150)
-plt.show()
-print("✅ Preview saved to Google Drive")
+```text
+/content/drive/MyDrive/TrafficSignProject/training_runs/yolo26s_640_rf_v1/
 ```
 
----
+Retain `weights/best.pt`, the OpenVINO model directory, metrics, plots, arguments,
+and the tested `data.yaml` together so a result can be reproduced.
 
-## Cell 7 — Train YOLOv8-nano
+## 5. Use the default YOLO26 inference path
 
-```python
-# ============================================================
-# CELL 7: TRAIN YOLOv8-nano
-# This is the main training cell. Takes ~20-40 minutes.
-# ============================================================
-from ultralytics import YOLO
+YOLO26 detection uses its one-to-one, end-to-end head by default. It outputs final
+detections directly, so the normal Ultralytics prediction and export path is
+**NMS-free**. Do not add external detector NMS or set `end2end=False` in the
+baseline.
 
-# Load pretrained YOLOv8-nano
-model = YOLO('yolov8n.pt')
+The safe-hybrid application may still use class-aware IoU to merge a full-frame
+result with a crop result. That is cross-pass application deduplication, not
+traditional detector NMS. A traditional one-to-many/NMS export is allowed only as
+a documented compatibility experiment and must be benchmarked separately.
 
-# Train on the Roboflow dataset
-results = model.train(
-    data=f"{dataset_location}/data.yaml",
-    epochs=100,              # 100 training rounds
-    imgsz=640,               # Input image size
-    batch=16,                # Images per batch (reduce to 8 if CUDA out of memory)
-    patience=20,             # Stop early if no improvement for 20 epochs
-    project=save_dir,        # Save to Google Drive
-    name='roboflow_v1',      # Run name
-    exist_ok=True,           # Overwrite if exists
-    plots=True,              # Generate training plots
-    save=True,               # Save checkpoints
-    verbose=True             # Show progress
-)
+See the official [YOLO26 model guide](https://docs.ultralytics.com/models/yolo26/),
+[end-to-end detection guide](https://docs.ultralytics.com/guides/end2end-detection/),
+and [OpenVINO integration](https://docs.ultralytics.com/integrations/openvino/).
 
-print("\n✅ Training complete!")
-print(f"Best model saved at: {save_dir}/roboflow_v1/weights/best.pt")
-```
+## 6. Validate the Intel CPU deployment
 
-> [!TIP]
-> If you get **"CUDA out of memory"**, change `batch=16` to `batch=8`.
-> Training takes about 20-40 minutes. You can watch the progress in real-time.
+For the target Intel CPU server, use the exported OpenVINO model as the deployment
+candidate. Validate `best.pt` and its OpenVINO export on the same held-out images
+before webcam testing. Do not assume an export is equivalent merely because it
+loads.
 
----
+The deployment run must record:
 
-## Cell 8 — View Training Results
+- precision, recall, mAP@0.5, mAP@0.5:0.95, per-class recall, and confusion matrix;
+- median and 95th-percentile end-to-end latency at 640;
+- processed FPS, small/distant-sign recall, false positives per minute on no-sign
+  video, and unstable label changes; and
+- PyTorch-to-OpenVINO metric difference on the identical test set.
 
-```python
-# ============================================================
-# CELL 8: View training results
-# ============================================================
-from IPython.display import Image, display
+## 7. Model and pipeline acceptance gates
 
-results_dir = f"{save_dir}/roboflow_v1"
+Freeze the test split before comparing models. Use the same 640 input, validation
+thresholds, saved laptop-camera recordings, server, and measurement method.
 
-# Show the confusion matrix
-confusion_path = f"{results_dir}/confusion_matrix.png"
-if os.path.exists(confusion_path):
-    print("📊 Confusion Matrix:")
-    display(Image(filename=confusion_path, width=800))
+| Decision | Measured gate |
+|---|---|
+| Accept YOLO26s baseline | Precision and recall are each at least 0.80, mAP@0.5 is at least 0.75, and target-server p95 end-to-end latency is at most 500 ms on Intel CPU or 200 ms on the selected GPU server. |
+| Accept OpenVINO export | It passes the same functional tests and loses no more than 0.01 absolute mAP@0.5 versus its `best.pt` source; report latency rather than assuming a speedup. |
+| Use YOLO26n fallback | YOLO26s misses the latency gate, and YOLO26n passes both the latency gate and all minimum quality gates. |
+| Test YOLO26m challenger | Only after all 49 classes have adequate, balanced original data and a GPU server is available. Accept it only if it improves mAP@0.5:0.95 or small-sign recall by at least 0.02 absolute without failing the latency or false-positive gate. |
+| Enable safe hybrid | Against full-frame YOLO26s on identical recordings, it must improve p95 latency by at least 10% or small-sign recall by at least 0.02 absolute, while reducing no overall recall by more than 0.01 and not increasing false positives per minute. |
 
-# Show the results plot (loss curves, mAP)
-results_path = f"{results_dir}/results.png"
-if os.path.exists(results_path):
-    print("\n📈 Training Curves:")
-    display(Image(filename=results_path, width=800))
+Thresholds are selected on validation data, then frozen before the final test. If
+the seed dataset cannot support each class in every split, label the run as a demo;
+do not claim that it satisfies the final quality gates.
 
-# Show validation predictions
-val_pred_path = f"{results_dir}/val_batch0_pred.png"
-if os.path.exists(val_pred_path):
-    print("\n🔍 Validation Predictions:")
-    display(Image(filename=val_pred_path, width=800))
-```
+## 8. Improve data before architecture
 
----
+The 84-image seed set is not sufficient evidence for a 49-class production model.
+First add varied originals, laptop-camera examples, hard negatives, and realistic
+training-only blur/noise/compression augmentation. Do not use horizontal or vertical
+flips.
 
-## Cell 9 — Test on Sample Images
-
-```python
-# ============================================================
-# CELL 9: Quick test — run detection on validation images
-# ============================================================
-best_model = YOLO(f"{save_dir}/roboflow_v1/weights/best.pt")
-
-# Run validation to get metrics
-metrics = best_model.val(data=f"{dataset_location}/data.yaml")
-
-print("\n" + "=" * 60)
-print("FINAL MODEL METRICS")
-print("=" * 60)
-print(f"  mAP@50:     {metrics.box.map50:.1%}")
-print(f"  mAP@50-95:  {metrics.box.map:.1%}")
-print(f"  Precision:   {metrics.box.mp:.1%}")
-print(f"  Recall:      {metrics.box.mr:.1%}")
-print("=" * 60)
-```
-
----
-
-## Cell 10 — Export to ONNX (for Android later)
-
-```python
-# ============================================================
-# CELL 10: Export model to ONNX format (for future Android use)
-# ============================================================
-import shutil
-
-best_pt = f"{save_dir}/roboflow_v1/weights/best.pt"
-model = YOLO(best_pt)
-
-# Export to ONNX
-model.export(format='onnx', imgsz=640, simplify=True)
-print("✅ ONNX export complete!")
-
-# Also copy best.pt to an easy-to-find location
-shutil.copy(best_pt, f"{save_dir}/best.pt")
-print(f"✅ best.pt copied to: {save_dir}/best.pt")
-print("\n📥 Download best.pt from Google Drive to your laptop!")
-print("   Path: Google Drive > TrafficSignProject > best.pt")
-```
-
----
-
-## After Training — What To Do on Your Laptop
-
-1. **Download `best.pt`** from Google Drive → `TrafficSignProject/best.pt`
-2. **Copy** `best.pt` into: `preliminary/member4_shape_detection/`
-3. **Run the test script:**
-   ```
-   cd preliminary/member4_shape_detection
-   pip install ultralytics opencv-python
-   python test_84_images.py
-   ```
-4. **Run the webcam demo:**
-   ```
-   python webcam_yolo_demo.py
-   ```
-5. **Take screenshots** for your report and presentation!
+YOLO26n is a deployment fallback, not the accuracy baseline. YOLO26m is not a
+default upgrade. Do not add a custom attention block, detection head, or backbone
+until the standard YOLO26s error analysis shows a reproducible limitation.

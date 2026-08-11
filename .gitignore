@@ -1,29 +1,23 @@
 # ============================================
-# MYSignVoice - Android + C++ + Python Project
+# MYSignVoice - Web App + C++ + Python Project
 # ============================================
 
-# --- Android / Gradle ---
-*.iml
-.gradle/
-/local.properties
-/.idea/
-.DS_Store
-/build/
-/app/build/
-/captures
-.externalNativeBuild/
-.cxx/
-*.apk
-*.aab
-*.ap_
-*.dex
+# --- Python / Flask ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+instance/
+uploads/
 
-# --- Kotlin / Java ---
-*.class
-*.jar
-*.war
-
-# --- C++ / CMake ---
+# --- C++ / CMake (for preliminary OpenCV work) ---
 cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
@@ -36,19 +30,6 @@ Makefile
 *.exe
 *.out
 
-# --- Python ---
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-dist/
-build/
-.eggs/
-*.egg
-.venv/
-venv/
-env/
-
 # --- ML Model Files (too large for git) ---
 *.pt
 *.pth
@@ -57,9 +38,8 @@ env/
 *.bin
 *.tflite
 *.weights
-# Exception: keep the .gitkeep files and best.pt model
+# Exception: keep the .gitkeep files
 !.gitkeep
-!best.pt
 
 # --- Dataset Images (collect locally, too large for git) ---
 /dataset/raw_images/*
@@ -106,7 +86,8 @@ output/
 # --- Temporary ---
 /scratch/
 *.tmp
-# --- Visual Studio ---
+
+# --- Visual Studio (for preliminary C++ work) ---
 .vs/
 *.obj
 *.pdb
@@ -124,3 +105,6 @@ Debug/
 *.iobj
 *.ipdb
 *.ipch
+
+# --- Node (if using frontend build tools) ---
+node_modules/

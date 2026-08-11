@@ -1,5 +1,7 @@
 # 🚀 YOLOv8-nano Training Guide — Part 1: Dataset Preparation & First Training Run
 
+> **ARCHIVED — DO NOT USE FOR THE CURRENT RUN.** This guide belongs to the former YOLOv8/Android workflow and contains an obsolete dataset/class setup. The active 49-class YOLO26s workflow is in `docs/roboflow_training_guide.md` and `training/train_colab.py`.
+
 > **Where**: Everything in Part 1 happens entirely on **Google Colab**. You don't need to touch your local PC at all.
 >
 > **What you need**: Your 6 RAR files already uploaded to Google Drive folder `TrafficSignProject/`

@@ -1,5 +1,7 @@
 # 🚀 YOLOv8-nano Training Guide — Part 2: Export to Android (ncnn)
 
+> **ARCHIVED — DO NOT USE FOR THE CURRENT WEB PROJECT.** The active server deployment exports YOLO26s to ONNX and OpenVINO; it does not convert to Android/ncnn. See `docs/roboflow_training_guide.md`.
+
 > **Where**: Still on **Google Colab**!
 > 
 > **Goal**: Convert your `best.pt` PyTorch model into the `ncnn` C++ format so it can run directly on an Android phone without any lag.

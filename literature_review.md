@@ -1,5 +1,7 @@
 # UCCC2513 Mini Project — Literature Review Paper Analysis
 
+> **Historical literature-review snapshot.** The paper analysis below is preserved as written, including the former Android/YOLOv8 context. The approved implementation is now the YOLO26s server-side web design described in `plan.md` and `enhanced_block_diagram.md`.
+
 ## 🎯 Project Context & Goal
 The project **"MYSignVoice: Intelligent Malaysian Traffic Sign Recognition for Visually Impaired Pedestrians Using Real-Time Camera Detection on Android"** aims to develop a mobile application that:
 1. Captures live camera frames on Android (CameraX).

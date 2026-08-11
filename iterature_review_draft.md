@@ -82,7 +82,7 @@ Block Diagram:
  
 Input and Output of Each Block:
 Block	Input	Output
-Raw Traffic Signs Image	Camera frame (mobile phone or GoPro)	RGB image
+Raw Traffic Signs Image	Camera frame (webcam, phone or dashcam)	RGB image
 Mask R-CNN (Shape Detection)	RGB image	Bounding polygon/mask and shape category (circular, triangular, or rectangular)
 ROI Cropping	Detected shape region and mask coordinates	Cropped single-sign image
 Xception (Classification)	Cropped sign image, routed by shape	Class probabilities across the sign's shape-specific categories
@@ -314,14 +314,14 @@ Paper 3: Ji et al. (2024), Improved YOLOv8 for Small Traffic Sign Detection unde
 
 2.4 Category: CNN Optimization & Robustness in Adverse Conditions
 Contributed by: Kendrew Lim Yan Zhe
-In the rapid push toward autonomous driving and assistive technologies, deploying real-time object detection on mobile devices presents a massive problem. We want to solve the problem of traffic sign detection for visually impaired walker, but doing this outdoors means our camera system will face severe lighting changes, heavy rain, and motion blur. Traditional colour segmentation fails instantly in these environments. To make our application actually work in real life, we must rely on highly optimized Convolutional Neural Networks (CNNs). This section reviews critical papers that explore how to optimize CNN architectures (like YOLO) for speed and how to make them robust against adverse environmental conditions.
+In the rapid push toward autonomous driving and assistive technologies, deploying real-time object detection systems presents a massive challenge. We want to solve the problem of traffic sign detection for driving assistance, but doing this outdoors means our camera system will face severe lighting changes, heavy rain, and motion blur. Traditional colour segmentation fails instantly in these environments. To make our application actually work in real life, we must rely on highly optimized Convolutional Neural Networks (CNNs). This section reviews critical papers that explore how to optimize CNN architectures (like YOLO) for speed and how to make them robust against adverse environmental conditions.
 
 2.4.1: Traffic Sign Detection Under Adverse Environmental Conditions Based on CNN
 Reference:
 Q. Gao, H. Hu and W. Liu, "Traffic Sign Detection Under Adverse Environmental Conditions Based on CNN," in IEEE Access, vol. 12, pp. 117572-117580, 2024, doi: 10.1109/ACCESS.2024.3446990
 Summary of Technique:
 This paper addresses the reality that standard traffic sign datasets mostly contain clear, daytime photos. When models trained on these datasets are deployed outdoors, they fail spectacularly during heavy rain, thick fog, or severe sun glare. The core issue is that adverse weather washes out the distinct red and blue chromaticity that neural networks usually rely on to identify signs. 
-To counter this, the authors propose a robust CNN pipeline built on two major pillars. First, they use extensive data augmentation to artificially corrupt the training data, forcing the model to learn what a speed limit sign looks like through simulated rain and lens flare. Second, they introduce a Spatial Attention Mechanism into the CNN architecture. Instead of just looking at pixel colours, this attention layer mathematically forces the network to prioritize the geometric structural edges—like the hard outline of an octagon or a triangle—which remain visible even when the paint colour is obscured. This methodology is essential for our project. Since we are building an assistive application for visually impaired walker, the camera will constantly face unpredictable outdoor environments. 
+To counter this, the authors propose a robust CNN pipeline built on two major pillars. First, they use extensive data augmentation to artificially corrupt the training data, forcing the model to learn what a speed limit sign looks like through simulated rain and lens flare. Second, they introduce a Spatial Attention Mechanism into the CNN architecture. Instead of just looking at pixel colours, this attention layer mathematically forces the network to prioritize the geometric structural edges—like the hard outline of an octagon or a triangle—which remain visible even when the paint colour is obscured. This methodology is essential for our project. Since we are building a real-time traffic sign detection system for driving assistance, the camera will constantly face unpredictable outdoor environments.
 System Block Diagram:
  
 Input and Output of Each Block:
@@ -339,9 +339,9 @@ Reference:
 A. Avramović, D. Sluga, D. Tabernik, D. Skočaj, V. Stojnić and N. Ilc, "Neural-Network-Based Traffic Sign Detection and Recognition in High-Definition Images Using Region Focusing and Parallelization," in IEEE Access, vol. 8, pp. 189855-189868, 2020, doi: 10.1109/ACCESS.2020.3031191
 
 Summary of Techniques:
-Processing full high-definition (HD) camera frames through a deep YOLO network is incredibly slow, especially on mobile CPUs. This paper proposes a hybrid architecture approach called "Region Focusing" to solve this hardware limitation.
+Processing full high-definition (HD) camera frames through a deep YOLO network is incredibly slow, especially on resource-constrained hardware. This paper proposes a hybrid architecture approach called "Region Focusing" to solve this hardware limitation.
 Instead of feeding the entire high-resolution image into the heavy YOLO network, the system uses fast, parallelized traditional computer vision algorithms (like basic colour thresholding and edge detection) to scan the frame. This lightweight preprocessing step quickly identifies "candidate regions"—small areas that might contain a sign. The system crops these tiny patches (often just 64x64 pixels) and completely discards the remaining 95% of the image containing useless background like sky, trees, and pitch. 
-Only these tiny, focused crops are sent to the GPU for the heavy CNN classification. For our mobile deployment, this technique proves that we do not have to compromise between camera resolution and processing speed. By implementing a similar region-focusing pipeline, we can guarantee that our Android app meets the strict real-time performance requirements of the project.
+Only these tiny, focused crops are sent to the GPU for the heavy CNN classification. For our deployment, this technique proves that we do not have to compromise between camera resolution and processing speed. By implementing a similar region-focusing pipeline, we can guarantee that our web-based detection system meets the strict real-time performance requirements of the project.
  
 System Block Diagram:
  
@@ -354,14 +354,14 @@ Candidate Region Crops	HD Frames+ Bounding Box	Small extracted image patches
 YOLO/ CNN Classifier	Small Image Patches	Final verified class labels and confidence scores
 
 Text Description:
-We noticed that running heavy AI on a phone drains the battery and causes severe lag. This paper fixes that by splitting the work. A fast, traditional algorithm runs on multiple CPU threads to rapidly scan the HD image for anything that looks similarly like a sign. It crops these areas out and discards the rest of the useless background (like trees and sky). The heavy YOLO network then only processes these tiny candidate crops, which keeps the framerate high enough for real-time mobile use.
+We noticed that running heavy AI on resource-constrained hardware causes severe lag. This paper fixes that by splitting the work. A fast, traditional algorithm runs on multiple CPU threads to rapidly scan the HD image for anything that looks similarly like a sign. It crops these areas out and discards the rest of the useless background (like trees and sky). The heavy YOLO network then only processes these tiny candidate crops, which keeps the framerate high enough for real-time use.
  
 2.4.3 Traffic Sign Detection and Recognition Using YOLO Object Detection Algorithm: A Systematic Review
 Reference: 
 F. Calero, M. Astudillo, C.G. Bustillos, D. E. Maza, J. Lita, B. Defaz, B. Ante, J. Z. Blanco, D.Armingol, J.M.A. Moreno. (2024). Traffic Sign Detection and Recognition Using YOLO Object Detection Algorithm: A Systematic Review. Mathematics. 12. 297. 10.3390/math12020297. 
 Summary of Techniques:
-Unlike standard experimental research, this paper is a Systematic Literature Review that tracks the historical evolution of the YOLO architecture from its early v2 iterations all the way to YOLOv8, using public datasets (GTSDB, GTSRB, TT100K), evaluation metrics (mAP, FPS), hardware platforms (NVIDIA GPUs, Jetson Xavier NX, mobile GPU), and challenges in real road conditions. With dozens of object detection architectures available today, selecting the correct model for a mobile edge device is a complex balancing act between Mean Average Precision (accuracy) and Frames Per Second (speed). 
-Using the rigorous PRISMA screening framework, the authors analyzed 115 primary studies to extract comparable performance metrics across different hardware setups. The review highlights specific architectural breakthroughs that have made mobile deployment feasible. For instance, it details how the transition to seperate heads and anchor-free detection in YOLOv8 significantly reduces the computational overhead while actually improving the detection of small objects—like distant traffic signs. 
+Unlike standard experimental research, this paper is a Systematic Literature Review that tracks the historical evolution of the YOLO architecture up to YOLOv5, using public datasets (GTSDB, GTSRB, TT100K), evaluation metrics (mAP, FPS), hardware platforms (NVIDIA GPUs, Jetson Xavier NX, mobile GPU), and challenges in real road conditions. With dozens of object detection architectures available today, selecting the correct model for real-time deployment is a complex balancing act between Mean Average Precision (accuracy) and Frames Per Second (speed).
+Using the rigorous PRISMA screening framework, the authors analyzed 115 primary studies to extract comparable performance metrics across different hardware setups. The review highlights specific architectural breakthroughs that have made real-time deployment feasible. For instance, it details how YOLOv5 significantly improves upon its predecessors, offering high average precision while maintaining excellent processing speeds for real-time deployment.
 This comprehensive review acts as our academic foundation. Rather than guessing which AI model to use, we can point directly to this paper's statistical metric extraction to justify our architectural choices. 
 
 
@@ -376,13 +376,13 @@ Academic Databases	Search keywords	Raw research paper
 PRISMA Screening Protocol	Raw paper	115 filtered, highly relevant primary studies
 Architecture Comparison	Selected studies	Structural differences between YOLO generations
 Metric Extraction	Experimental data from studies	Statistical Comparison tables of speed vs accuracy
-Optimal Edge Strategy	Extracted metrics	Conclusion on the best YOLO variant for mobile deployment
+Optimal Edge Strategy	Extracted metrics	Conclusion on the best YOLO variant for real-time deployment
 
 Text Description:
-This paper acts as a master guide for selecting the right deep learning architecture. The researchers used the PRISMA framework to systematically filter hundreds of papers down to the most relevant YOLO studies. By extracting and comparing the performance metrics across all these studies, they prove that newer, lightweight YOLO variants (like YOLOv8-nano) offer the only realistic pathway for deploying high-accuracy detection on constrained edge hardware without relying on cloud processing. 
+This paper acts as a master guide for selecting the right deep learning architecture. The researchers used the PRISMA framework to systematically filter hundreds of papers down to the most relevant YOLO studies. By extracting and comparing the performance metrics across all these studies, they prove that optimized YOLO variants (like YOLOv5) offer a realistic pathway for deploying high-accuracy detection on constrained edge hardware without relying on cloud processing. 
 2.4.4 Technical Comparison of 3 Techniques
 Feature	Main Technique	Advantage	Disadvantage	Best Use Context
-Paper 1: Traffic Sign Detection Under Adverse Environmental Conditions Based on CNN	Synthetic data augmentation and SpatSial Attention Modules.	Drastically reduces false negatives in poor lighting; highly robust for outdoor use.	Training takes significantly longer; attention modules slightly increase inference time.	Deploying the app outdoors in variable weather (rain, fog, nighttime).
-Paper 2: Neural-Network-Based Traffic Sign Detection and Recognition in High-Definition Images Using Region Focusing and Parallelization	CPU parallelization of traditional computer vision to crop candidate regions.	Massively speeds up inference time; allows HD camera usage without lagging the phone.	If the fast region focuser misses a faded sign, the CNN never gets a chance to see it.	Processing high-definition real-time mobile camera feeds.
-Paper 3: Traffic Sign Detection and Recognition Using YOLO Object Detection Algorithm: A Systematic Review	Systematic PRISMA literature screening and statistical metric extraction.	Provides indisputable, peer-reviewed evidence for selecting our project's YOLOv8 architecture.	Does not propose a new algorithm; relies entirely on the experimental setups of older papers.	Selecting the optimal lightweight AI architecture for edge deployment.
+Paper 1: Traffic Sign Detection Under Adverse Environmental Conditions Based on CNN	Synthetic data augmentation and Spatial Attention Modules.	Drastically increases processing speed (5x FPS) in adverse weather, making it highly robust for real-time outdoor use.	Slightly decreases absolute accuracy (-2.8%) compared to heavier segmentation models.	Deploying the app outdoors in variable weather (rain, fog, nighttime).
+Paper 2: Neural-Network-Based Traffic Sign Detection and Recognition in High-Definition Images Using Region Focusing and Parallelization	CPU parallelization of traditional computer vision to crop candidate regions.	Massively speeds up inference time; allows HD camera usage without lagging the system.	If the fast region focuser misses a faded sign, the CNN never gets a chance to see it.	Processing high-definition real-time camera feeds.
+Paper 3: Traffic Sign Detection and Recognition Using YOLO Object Detection Algorithm: A Systematic Review	Systematic PRISMA literature screening and statistical metric extraction.	Provides indisputable, peer-reviewed evidence of YOLO's evolution and suitability for edge devices.	Does not propose a new algorithm; relies entirely on the experimental setups of older papers.	Selecting the optimal lightweight AI architecture for edge deployment.
 

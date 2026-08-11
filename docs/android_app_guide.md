@@ -1,5 +1,7 @@
 # 📱 Option 1: Android App Framework Integration Guide
 
+> **ARCHIVED PROJECT DIRECTION.** MYSignVoice is now a browser client with a Python inference server. This Android/ncnn guide is retained only as historical material; use `plan.md` and `enhanced_block_diagram.md` for the active design.
+
 This guide outlines the steps to build the final Android app (due Week 13) that will use your trained YOLOv8 model to detect traffic signs in real-time.
 
 ---

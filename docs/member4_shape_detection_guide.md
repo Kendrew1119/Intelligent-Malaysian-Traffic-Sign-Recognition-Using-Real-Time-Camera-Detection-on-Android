@@ -148,12 +148,12 @@ To see the intermediate images (grayscale, blur, edges) pop up one by one:
 2. Type: `--show`
 3. Run again. Each image will show 4 windows. Press any key to move to the next image.
 
-### 🎥 NEW: Run Live Webcam Mode (For Presentation)
-To show off a live webcam feed detecting shape and color in real-time during your preliminary presentation:
-1. Go to **Properties** > **Debugging** > **Command Arguments**.
-2. Change the argument to: `--camera`
-3. Press **Ctrl + F5**.
-4. Your webcam will open! Hold up the 84 test images to the camera.
+### NEW: Run Live Webcam Mode (For Presentation)
+To show off a live webcam feed detecting shape and color in real-time during your preliminary presentation, you must compile the dedicated camera executable.
+1. Remove `shape_detection.cpp` from your Visual Studio Source Files.
+2. Add `camera_detection.cpp` to your Visual Studio Source Files.
+3. Build and Run (**Ctrl + F5**).
+4. Your webcam will open! Hold up the 85 test images to the camera.
 5. **Press 'm'** while the camera is running to toggle the split-screen view, which shows your lecturer the actual HSV color masks working in real-time.
 6. Press 'q' to quit.
 
