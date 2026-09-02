@@ -2,8 +2,8 @@
 # [Member 4] test_84_images.py — HYBRID VERSION
 # ============================================
 # ARCHIVED PRELIMINARY TEST: this script uses the old test-only checkpoint and
-# its results do not validate the canonical 49-class YOLO26s system. Use
-# benchmark_pipeline_modes.py with the newly trained 49-class best.pt instead.
+# its results do not validate the canonical 63-class YOLO26s system. Use
+# benchmark_pipeline_modes.py with the newly trained 63-class best.pt instead.
 #
 # Purpose: Combine OpenCV HSV color detection
 #          with a legacy YOLO checkpoint to test

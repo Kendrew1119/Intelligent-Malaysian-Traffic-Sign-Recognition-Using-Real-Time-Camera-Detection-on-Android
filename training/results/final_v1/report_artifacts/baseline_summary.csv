@@ -1,0 +1,2 @@
+model,run_name,best_epoch,precision,recall,mAP50,mAP50-95
+yolo26s.pt,yolo26s_63class_rf_v1_fresh,139,0.87045,0.92498,0.95068,0.80392

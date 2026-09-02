@@ -1,4 +1,4 @@
-"""Train MYSignVoice's verified 49-class dataset in Google Colab.
+"""Train MYSignVoice's verified 63-class dataset in Google Colab.
 
 Run after mounting Google Drive and installing the current project dependencies:
 
@@ -25,7 +25,7 @@ from ultralytics import YOLO
 
 
 EXPECTED_CLASSES = [
-    "straight-or-right", "straight-only", "basement-entrance", "left-turn-only",
+    "straight-or-right", "straight-only", "left-turn-only",
     "left-or-right", "right-turn-only", "pass-right", "roundabout", "cars-only",
     "use-horn", "bicycle-path", "uturn-lane", "speed-limit-5", "speed-limit-15",
     "speed-limit-30", "speed-limit-40", "speed-limit-50", "speed-limit-60",
@@ -35,11 +35,22 @@ EXPECTED_CLASSES = [
     "stop-for-inspection", "pass-obstacle-on-either-side", "general-warning",
     "pedestrian-crossing-warning", "bicycle-warning", "children-crossing-warning",
     "sharp-right-turn-warning", "steep-descent-warning", "slowdown-warning",
-    "t-intersection-right-warning", "village-ahead-warning", "winding-road-warning",
+    "village-ahead-warning", "winding-road-warning",
     "railway-crossing-ahead-warning", "construction-ahead-warning",
     "slippery-road-warning", "gated-railway-crossing-ahead-warning",
     "accident-prone-area-warning",
+    "bumps-warning", "bus-stop", "camera-operation-zone",
+    "cow-nearby-warning", "height-limit", "no-parking",
+    "parking-area", "towing-area", "chevron-left", "chevron-right",
+    "crossroad-left-warning", "crossroad-right-warning",
+    "road-narrows-left-warning", "road-narrows-right-warning",
+    "roadway-diverges-warning", "reverse-turn-warning",
 ]
+
+CLASS_NAME_CORRECTIONS = {
+    "pass-obstacles-on-either-side": "pass-obstacle-on-either-side",
+    "winding_road_warning": "winding-road-warning",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,23 +89,42 @@ def normalise_names(names: list[str] | dict) -> list[str]:
     raise ValueError("data.yaml has no usable 'names' list or dictionary.")
 
 
-def validate_dataset_config(data_yaml: Path) -> None:
+def validate_dataset_config(data_yaml: Path) -> list[str]:
     with data_yaml.open("r", encoding="utf-8") as stream:
         config = yaml.safe_load(stream)
 
-    names = normalise_names(config.get("names", []))
-    if config.get("nc") != len(EXPECTED_CLASSES) or names != EXPECTED_CLASSES:
+    original_names = normalise_names(config.get("names", []))
+    names = [CLASS_NAME_CORRECTIONS.get(name, name) for name in original_names]
+    missing = sorted(set(EXPECTED_CLASSES) - set(names))
+    unexpected = sorted(set(names) - set(EXPECTED_CLASSES))
+    if (
+        config.get("nc") != len(EXPECTED_CLASSES)
+        or len(names) != len(EXPECTED_CLASSES)
+        or len(set(names)) != len(EXPECTED_CLASSES)
+        or missing
+        or unexpected
+    ):
         actual = "\n".join(f"  {index}: {name}" for index, name in enumerate(names))
         expected = "\n".join(f"  {index}: {name}" for index, name in enumerate(EXPECTED_CLASSES))
         raise ValueError(
-            "Roboflow's exported class list does not match the locked 49-class inventory.\n"
-            "Fix the Roboflow class names/order, generate a new version, then rerun.\n\n"
-            f"Expected:\n{expected}\n\nExported:\n{actual}"
+            "Roboflow's exported class set does not match the locked 63-class inventory.\n"
+            f"Missing: {missing}\nUnexpected: {unexpected}\n\n"
+            f"Expected inventory:\n{expected}\n\nExported order:\n{actual}"
         )
-    print("Class-list check passed: 49 class names and IDs match the project inventory.")
+
+    if names != original_names:
+        config["names"] = names
+        config["nc"] = len(names)
+        with data_yaml.open("w", encoding="utf-8") as stream:
+            yaml.safe_dump(config, stream, sort_keys=False, allow_unicode=True)
+        print("Corrected known class-name variants in the downloaded data.yaml.")
+
+    print("Class-list check passed: all 63 class names are present and unique.")
+    print("Roboflow's exported class-ID order is preserved for labels and model output.")
+    return names
 
 
-def report_label_counts(dataset_root: Path) -> None:
+def report_label_counts(dataset_root: Path, class_names: list[str]) -> None:
     """Show per-class label counts and flag classes unsuitable for meaningful metrics."""
     counts: Counter[int] = Counter()
     split_counts: dict[str, int] = {}
@@ -111,7 +141,7 @@ def report_label_counts(dataset_root: Path) -> None:
 
     print(f"Split label files: {split_counts}")
     scarce = []
-    for class_id, class_name in enumerate(EXPECTED_CLASSES):
+    for class_id, class_name in enumerate(class_names):
         count = counts[class_id]
         print(f"{class_id:>2}  {class_name:<42} {count:>4} boxes")
         if count < 5:
@@ -135,7 +165,7 @@ def main() -> None:
         ) from exc
 
     model_stem = Path(args.model).stem
-    run_name = args.run_name or f"{model_stem}_49class_rf_v{args.version}"
+    run_name = args.run_name or f"{model_stem}_63class_rf_v{args.version}"
 
     rf = Roboflow(api_key=args.api_key)
     version = rf.workspace(args.workspace).project(args.project).version(args.version)
@@ -145,8 +175,8 @@ def main() -> None:
     if not data_yaml.is_file():
         raise FileNotFoundError(f"Roboflow export did not contain data.yaml: {data_yaml}")
 
-    validate_dataset_config(data_yaml)
-    report_label_counts(dataset_root)
+    exported_class_names = validate_dataset_config(data_yaml)
+    report_label_counts(dataset_root, exported_class_names)
 
     model = YOLO(args.model)
     model.train(
@@ -158,7 +188,7 @@ def main() -> None:
         project=str(args.run_dir),
         name=run_name,
         exist_ok=True,
-        cache=True,
+        cache="disk",
         plots=True,
         # Geometric/colour augmentation is safe; horizontal flipping is not because
         # it changes the meaning of left/right/turn traffic signs.

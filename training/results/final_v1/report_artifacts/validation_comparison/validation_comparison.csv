@@ -1,0 +1,3 @@
+model,precision,recall,F1,mAP50,mAP50-95,checkpoint
+baseline,0.8700213905712233,0.9250264637073572,0.896681175770991,0.9506587952174318,0.8009577371166422,/workspace/mysignvoice_runs/yolo26s_63class_rf_v1_fresh/weights/best.pt
+tuned_cls_pw_025,0.9735240513492749,0.8707169421305703,0.9192550085137977,0.9437314864289074,0.8042107351747728,/workspace/mysignvoice_runs/yolo26s_63class_rf_v1_fresh/tuning/yolo26s_cls_pw_025/weights/best.pt

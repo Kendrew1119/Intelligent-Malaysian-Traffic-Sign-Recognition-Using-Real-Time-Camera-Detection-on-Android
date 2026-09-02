@@ -1,0 +1,74 @@
+names:
+- accident-prone-area-warning
+- bicycle-path
+- bicycle-warning
+- bumps-warning
+- bus-stop
+- camera-operation-zone
+- cars-only
+- chevron-left
+- chevron-right
+- children-crossing-warning
+- construction-ahead-warning
+- cow-nearby-warning
+- crossroad-left-warning
+- crossroad-right-warning
+- gated-railway-crossing-ahead-warning
+- general-warning
+- give-way
+- height-limit
+- left-or-right
+- left-turn-only
+- no-cars
+- no-entry
+- no-horn
+- no-left
+- no-left-and-right
+- no-overtaking
+- no-parking
+- no-right
+- no-straight
+- no-straight-or-left
+- no-uturn
+- parking-area
+- pass-obstacle-on-either-side
+- pass-right
+- pedestrian-crossing-warning
+- railway-crossing-ahead-warning
+- reverse-turn-warning
+- right-turn-only
+- road-narrows-left-warning
+- road-narrows-right-warning
+- roadway-diverges-warning
+- roundabout
+- sharp-right-turn-warning
+- slippery-road-warning
+- slowdown-warning
+- speed-limit-15
+- speed-limit-30
+- speed-limit-40
+- speed-limit-5
+- speed-limit-50
+- speed-limit-60
+- speed-limit-80
+- steep-descent-warning
+- stop-for-inspection
+- stop-sign
+- straight-only
+- straight-or-right
+- towing-area
+- traffic-light-ahead
+- use-horn
+- uturn-lane
+- village-ahead-warning
+- winding-road-warning
+nc: 63
+roboflow:
+  license: CC BY 4.0
+  project: mysignvoice-49-signs
+  url: https://universe.roboflow.com/kendrewlim-yahoo-com/mysignvoice-49-signs/dataset/1
+  version: 1
+  workspace: kendrewlim-yahoo-com
+test: ../test/images
+train: ../train/images
+val: ../valid/images

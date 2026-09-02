@@ -1,0 +1,24 @@
+{
+  "evaluation_scope": "Top predicted class versus the reviewed filename-code mapping for the 84 supplied single-sign images; bounding-box mAP is not calculated.",
+  "v2": {
+    "images": 84,
+    "top_class_correct": 83,
+    "top_class_accuracy": 0.9880952380952381,
+    "images_where_expected_class_was_found": 83,
+    "expected_class_found_rate": 0.9880952380952381,
+    "images_with_no_detection": 1,
+    "images_with_only_wrong_classes": 0,
+    "wrong_class_detections": 2
+  },
+  "v3": {
+    "images": 84,
+    "top_class_correct": 84,
+    "top_class_accuracy": 1.0,
+    "images_where_expected_class_was_found": 84,
+    "expected_class_found_rate": 1.0,
+    "images_with_no_detection": 0,
+    "images_with_only_wrong_classes": 0,
+    "wrong_class_detections": 0
+  },
+  "images_with_changed_top_selection": 1
+}

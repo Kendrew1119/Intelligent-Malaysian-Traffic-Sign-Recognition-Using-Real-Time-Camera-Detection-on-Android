@@ -1,24 +1,28 @@
-# MYSignVoice — 49-Class Roboflow Annotation Plan
+# MYSignVoice — 63-Class Roboflow Annotation Plan
 
 ## Confirmed scope
 
-The reviewed `class.xlsx` inventory covers **49 classes and 84 sign images**:
+After merging the two obsolete labels, the reviewed `class.xlsx` seed inventory
+maps to **47 distinct classes and 84 sign images**. The full project adds 16
+approved Malaysian-road-sign classes, giving **63 classes** in total:
 
 | Colour group | Classes | Sign images |
 |---|---:|---:|
-| Blue | 12 | 28 |
+| Blue | 11 | 28 |
 | Red | 21 | 28 |
-| Yellow | 16 | 28 |
-| **Total** | **49** | **84** |
+| Yellow | 15 | 28 |
+| **Seed total** | **47** | **84** |
+| Malaysian expansion | **16** | — |
+| **Project total** | **63** | **84 seed images** |
 
 `dataset/data.yaml` is the canonical class-ID mapping. The labels below must be
 copied into Roboflow exactly, in this order. They are lowercase and use hyphens.
 This class inventory is model-independent: the active detector changes to YOLO26s,
-but the 49 IDs and names do not change. IDs are zero-based, and corrected class ID
-33 is `pass-obstacle-on-either-side`.
+but the 63 IDs and names do not change. IDs are zero-based, and corrected class ID
+32 is `pass-obstacle-on-either-side`.
 
 ```text
-straight-or-right, straight-only, basement-entrance, left-turn-only, left-or-right,
+straight-or-right, straight-only, left-turn-only, left-or-right,
 right-turn-only, pass-right, roundabout, cars-only, use-horn, bicycle-path,
 uturn-lane, speed-limit-5, speed-limit-15, speed-limit-30, speed-limit-40,
 speed-limit-50, speed-limit-60, speed-limit-80, no-straight-or-left, no-straight,
@@ -26,7 +30,7 @@ no-left, no-left-and-right, no-right, no-overtaking, no-uturn, no-cars, no-horn,
 traffic-light-ahead, stop-sign, no-entry, give-way, stop-for-inspection,
 pass-obstacle-on-either-side, general-warning, pedestrian-crossing-warning, bicycle-warning,
 children-crossing-warning, sharp-right-turn-warning, steep-descent-warning,
-slowdown-warning, t-intersection-right-warning, village-ahead-warning,
+slowdown-warning, village-ahead-warning,
 winding-road-warning, railway-crossing-ahead-warning, construction-ahead-warning,
 slippery-road-warning, gated-railway-crossing-ahead-warning,
 accident-prone-area-warning
@@ -36,7 +40,7 @@ accident-prone-area-warning
 
 1. In Roboflow, create a project named `MYSignVoice-49-Signs` with project type
    **Object Detection**.
-2. Create all 49 classes using the list above before any annotation begins. Do not
+2. Create all 63 classes using `dataset/data.yaml` before any annotation begins. Do not
    use spaces, capitals, underscores, or alternative spellings such as `stop` instead
    of `stop-sign`.
 3. Upload the 84 supplied images from `Color Inputs/`. Label each visible sign with
@@ -51,13 +55,13 @@ accident-prone-area-warning
 ## Phase 2 — Collect enough original images
 
 The 84 images are a valid labelled **seed set**, but they are not large enough for
-49-class recognition: 29 classes currently have only one example and no class has
+47-class seed recognition: many classes currently have only one example and no class has
 more than four. Augmentation creates variations; it does not create new sign
 appearances or provide independent test evidence.
 
 Collect original photos of the same Malaysian sign designs, preferably taken by the
 team in varied locations, distances, lighting, angles, and backgrounds. Aim for at
-least **20 original annotated images per class** (980 total, so approximately 896
+least **20 original annotated images per seed class** (940 total, so approximately 856
 additional images beyond the seed set). Record the source of each image and ensure
 you are allowed to use it.
 
@@ -111,8 +115,8 @@ training and evaluation.
    test images.
 6. Export in **Ultralytics YOLO detection format**. If Roboflow labels the option
    **YOLOv8**, that export is still the compatible text-label format consumed by
-   YOLO26. In the exported `data.yaml`, verify that `nc` is 49, corrected class ID
-   33 is `pass-obstacle-on-either-side`, and every name/order entry matches
+   YOLO26. In the exported `data.yaml`, verify that `nc` is 63, corrected class ID
+   32 is `pass-obstacle-on-either-side`, and every name/order entry matches
    `dataset/data.yaml` before training.
 
 ## Phase 4 — Evaluation and reporting

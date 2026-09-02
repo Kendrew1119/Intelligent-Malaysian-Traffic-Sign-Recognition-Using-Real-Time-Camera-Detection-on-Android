@@ -12,6 +12,7 @@ build/
 .eggs/
 *.egg
 .venv/
+.venv-*/
 venv/
 env/
 instance/
@@ -38,17 +39,25 @@ Makefile
 *.bin
 *.tflite
 *.weights
+# OpenVINO deployment export (XML metadata and ignored BIN weights)
+/models/best_openvino_model/
+/models/mysignvoice_yolo26s_63class_final_v1/
+/models/mysignvoice_yolo26s_63class_v2/
+/models/candidates/
 # Exception: keep the .gitkeep files
 !.gitkeep
 
 # --- Dataset Images (collect locally, too large for git) ---
 /dataset/raw_images/*
+/dataset/hard_cases/images/*
+/dataset/hard_cases/manifest.jsonl
 /dataset/annotated/train/images/*
 /dataset/annotated/train/labels/*
 /dataset/annotated/val/images/*
 /dataset/annotated/val/labels/*
 /dataset/annotated/test/images/*
 /dataset/annotated/test/labels/*
+/dataset/speed_limit_reader/crops/
 !/dataset/**/.gitkeep
 
 # --- Color Inputs (provided test images - keep these) ---
@@ -108,3 +117,5 @@ Debug/
 
 # --- Node (if using frontend build tools) ---
 node_modules/
+*.docx
+tmp/

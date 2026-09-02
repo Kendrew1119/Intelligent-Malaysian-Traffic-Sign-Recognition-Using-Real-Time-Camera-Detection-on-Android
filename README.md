@@ -1,17 +1,17 @@
 # MYSignVoice
 
-MYSignVoice is a web-based Malaysian traffic-sign detection and classification system. A browser supplies a live webcam stream or an uploaded image/video; a Python backend returns bounding boxes, one of 49 sign classes, confidence scores, and a temporally stable result for display or speech output.
+MYSignVoice is a web-based Malaysian traffic-sign detection and classification system. A browser supplies a live webcam stream or an uploaded image/video; a Python backend returns bounding boxes, one of 63 sign classes, confidence scores, and a temporally stable result for display or speech output.
 
 ## Active design
 
 | Component | Technology | Purpose |
 |---|---|---|
-| Web client | Browser camera (`getUserMedia`) and WebSocket/HTTP | Capture frames and render results |
-| Backend | Python with Flask or FastAPI | Load the model once and serve inference |
-| Detector | Ultralytics YOLO26s, pretrained and fine-tuned at `imgsz=640` | Final 49-class detection and classification |
+| Web client | Browser camera (`getUserMedia`) and throttled HTTP | Capture frames and render results |
+| Backend | Python with FastAPI | Load the model once and serve inference |
+| Detector | Ultralytics YOLO26s, pretrained and fine-tuned at `imgsz=640` | Final 63-class detection and classification |
 | CPU deployment | OpenVINO on the Intel laptop/server | Lower-latency server inference |
 | Optional candidate path | OpenCV HSV masks, morphology, and contours | Propose contextual crops for a second YOLO pass |
-| Training | Roboflow annotations and Google Colab | Dataset versioning, training, validation, and export |
+| Training | Roboflow annotations and RunPod Jupyter | Dataset versioning, training, validation, and export |
 
 YOLO26s is the primary model. YOLO26n is a measured fallback for a slow or highly concurrent CPU server; YOLO26m is only a challenger for a suitable NVIDIA/cloud GPU. Model size is selected from validation accuracy and end-to-end latency on the actual deployment machine, not from model-family benchmarks alone.
 
@@ -19,17 +19,23 @@ The OpenCV branch is optional. Periodic full-frame YOLO inference remains the re
 
 ## Current status
 
-- The 49-class contract is locked in `dataset/data.yaml`.
+- The 63-class contract is locked in `dataset/data.yaml`.
 - The preliminary OpenCV code demonstrates colour segmentation, contour filtering, broad shape detection, and a hybrid webcam prototype.
-- The Colab script is prepared for YOLO26s training and ONNX/OpenVINO export.
-- A canonical trained 49-class `best.pt` does not exist yet. The preliminary `best.pt` is test-only and must not be deployed as the final model.
-- The web frontend/backend still needs to be implemented after the first validated model is available.
+- YOLO26s Version 3 fine-tuning from the Version 2 checkpoint is complete.
+- The Version 3 canonical 63-class model is installed locally at `models/best.pt`, with ONNX and OpenVINO exports beside it; Version 2 remains available as a rollback model.
+- On the untouched Version 3 test split, the selected checkpoint produced precision 0.9304, recall 0.8670, F1 0.8976, mAP50 0.9386, and mAP50-95 0.7770.
+- On the reviewed 84-image fixed set at a 20% threshold, Version 3 selected the expected class for 84/84 images. This is a top-class recognition check, not bounding-box mAP.
+- The first functional local web application is implemented in `webapp/`: image
+  upload, browser camera detection, bounding-box overlays, adjustable confidence,
+  stable speech output, sign meanings, session history, CSV export, and local
+  difficult-frame collection for a later retraining cycle.
 
 ## Project structure
 
 ```text
 miniproject/
-├── dataset/                         # Canonical 49-class config and local data folders
+├── dataset/                         # Canonical 63-class config and local data folders
+├── models/                          # Local final model, exports, manifest, and model ID mapping
 ├── training/                        # Colab training, evaluation, and export utilities
 ├── preliminary/                     # OpenCV and hybrid webcam experiments
 ├── docs/                            # Dataset, training, design, and report guides
@@ -42,11 +48,12 @@ Older Android/ncnn documents and conversion helpers are archival material from t
 
 ## Next phase
 
-1. Annotate the images in Roboflow with the exact 49 dash-separated class names from `dataset/data.yaml`.
-2. Add diverse real camera scenes and genuine no-sign/hard-negative images; keep train, validation, and test scenes independent.
-3. Run `training/train_colab.py` in Google Colab with the default `yolo26s.pt` weights.
-4. Evaluate per-class recall, mAP50-95, false detections on no-sign footage, and p50/p95 end-to-end latency.
-5. Benchmark the full-frame and optional hybrid modes on the target laptop before enabling ROI inference in the web backend.
+1. Validate Version 3 with longer laptop-camera and known no-sign footage, including p50/p95 latency and missed-sign counts.
+2. Keep collecting independent examples for classes whose test support remains small.
+3. Run `python -m pip install -r requirements-web.txt`, then
+   `python -m uvicorn webapp.main:app --host 127.0.0.1 --port 8000`.
+4. Validate image upload and live camera behaviour on the target laptop.
+5. Preserve `models/mysignvoice_yolo26s_63class_v2/` until Version 3 camera validation is complete.
 
 See `docs/roboflow_training_guide.md` for the exact workflow.
 

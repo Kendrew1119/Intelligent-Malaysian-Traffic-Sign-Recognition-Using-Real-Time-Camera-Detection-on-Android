@@ -7,7 +7,7 @@
 
 This preliminary module detects the dominant sign-coloured region and classifies its geometric shape as Circle, Triangle, Rectangle, Octagon or Polygon. It is implemented in C++17 with OpenCV. The static program in `preliminary/member4_shape_detection/shape_detection.cpp` tests the supplied image folders and optionally displays a six-panel processing result with `--show`. The separate `camera_detection.cpp` program demonstrates live webcam colour-and-shape detection.
 
-This module is not the final 49-class traffic-sign classifier. It provides explainable image-processing evidence and candidate/shape information. The final system will use a pretrained YOLO26s CNN detector to distinguish signs that have the same colour and shape but different pictograms or speed values.
+This module is not the final 63-class traffic-sign classifier. It provides explainable image-processing evidence and candidate/shape information. The final system will use a pretrained YOLO26s CNN detector to distinguish signs that have the same colour and shape but different pictograms or speed values.
 
 ## 4.4.2 Algorithm Description
 
@@ -64,7 +64,7 @@ Shape-classification accuracy =
 (Correct shape classifications / Total test images) × 100%
 ```
 
-The program console labels its aggregate result as “Overall accuracy”; this report uses the manually checked result below. It is important to distinguish this geometric shape accuracy from the final YOLO 49-class recognition accuracy, which will be evaluated separately.
+The program console labels its aggregate result as “Overall accuracy”; this report uses the manually checked result below. It is important to distinguish this geometric shape accuracy from the final YOLO 63-class recognition accuracy, which will be evaluated separately.
 
 ## 4.4.6 Results
 
@@ -125,4 +125,4 @@ These improvements are proposed for future experimentation only. The current pre
 
 HSV thresholding can produce noise or miss signs under glare, shadows, faded paint, motion blur, occlusion, perspective distortion or backgrounds with similar colours. The static program uses the largest valid contour, so it is not designed for multiple signs in one image. The camera program similarly selects the best valid candidate in each frame. These are expected limitations of a classical colour-and-shape approach.
 
-The next phase is to collect and annotate sufficient images for all 49 target classes, apply realistic training-only augmentation, and fine-tune YOLO26s at a 640-pixel baseline. YOLO26s will provide final bounding-box detection and pictogram/class recognition, while the OpenCV results remain useful for preliminary validation and an explainable presentation. The trained model will be exported to OpenVINO for the Intel laptop/server deployment and compared with YOLO26n only if the measured latency or web concurrency is too high.
+The next phase is to collect and annotate sufficient images for all 63 target classes, apply realistic training-only augmentation, and fine-tune YOLO26s at a 640-pixel baseline. YOLO26s will provide final bounding-box detection and pictogram/class recognition, while the OpenCV results remain useful for preliminary validation and an explainable presentation. The trained model will be exported to OpenVINO for the Intel laptop/server deployment and compared with YOLO26n only if the measured latency or web concurrency is too high.

@@ -1,0 +1,76 @@
+{
+  "project": "MYSignVoice",
+  "model": "YOLO26s",
+  "model_version": "Version 3",
+  "classes": 63,
+  "selected_training": "Fine-tuned from the deployed Version 2 checkpoint on the complete leak-audited Roboflow Version 3 dataset",
+  "image_size": 640,
+  "dataset_images": 8731,
+  "split_images": {
+    "train": 6274,
+    "validation": 1619,
+    "test": 838
+  },
+  "test_instances": 867,
+  "precision": 0.930449,
+  "recall": 0.866991,
+  "f1": 0.8976,
+  "map50": 0.938563,
+  "map50_95": 0.776968,
+  "source_run": "yolo26s_63class_rf_v3_camera_finetune",
+  "master_model": "best.pt",
+  "onnx_model": "best.onnx",
+  "openvino_model": "best_openvino_model",
+  "deployment_formats": [
+    "PyTorch",
+    "ONNX",
+    "OpenVINO"
+  ],
+  "selection_evidence": {
+    "untouched_test_comparison": {
+      "precision_change_from_v2": 0.012899,
+      "recall_change_from_v2": -0.02267,
+      "map50_change_from_v2": 0.004165,
+      "map50_95_change_from_v2": 0.008367
+    },
+    "reviewed_84_image_check": {
+      "confidence_threshold": 0.2,
+      "top_class_correct": 84,
+      "images": 84,
+      "extra_wrong_class_detections": 0,
+      "openvino_full_frame_fps": 3.34,
+      "scope": "Top-class recognition check using the reviewed filename-code mapping; not bounding-box mAP"
+    }
+  },
+  "rollback_model": "mysignvoice_yolo26s_63class_v2",
+  "auxiliary_speed_limit_reader": {
+    "enabled_in_deployment": false,
+    "deployment_mode": "yolo-plus-ocr",
+    "deployment_reason": "The prototype CNN rejected too many live-camera crops. YOLO remains the detector and fallback while OCR may refine a numeric value without blocking speech.",
+    "model": "speed_limit_reader.pt",
+    "architecture": "SpeedLimitCNN",
+    "values": [
+      5,
+      15,
+      30,
+      40,
+      50,
+      60,
+      80
+    ],
+    "confidence_threshold": 0.85,
+    "behaviour": "Retained only as an offline experiment and not called by the web application.",
+    "evaluation_note": "Prototype test split has only 24 speed-limit instances and 33.3% accepted coverage; this CNN remains an offline experiment."
+  },
+  "speed_limit_ocr": {
+    "enabled_in_deployment": true,
+    "engine": "RapidOCR with ONNX Runtime CPU",
+    "proposal_source": "YOLO26 Version 3 speed-limit detections",
+    "preprocessing": "12% inner crop, grayscale, and upscale short crops to at least 96 pixels high",
+    "plausible_values": "5 to 130 in steps of 5",
+    "confirm_confidence": 0.7,
+    "override_confidence": 0.95,
+    "fallback": "Keep the original YOLO numeric class whenever OCR is unavailable, invalid, or below the override threshold.",
+    "speech_policy": "OCR never blocks an announcement; the existing camera confidence, spatial matching, temporal confirmation, and cooldown remain authoritative."
+  }
+}

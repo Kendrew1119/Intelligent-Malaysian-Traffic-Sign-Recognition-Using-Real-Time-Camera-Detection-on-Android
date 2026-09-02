@@ -1,12 +1,12 @@
-# MYSignVoice - Google Colab Training Guide (49 Classes)
+# MYSignVoice - Google Colab Training Guide (63 Classes)
 
 This is the active server-side web deployment workflow. It trains the locked
-49-class inventory in `dataset/data.yaml` with **YOLO26s at `imgsz=640`** as
+63-class inventory in `dataset/data.yaml` with **YOLO26s at `imgsz=640`** as
 the baseline. The training script stops before training if the exported Roboflow
 names or IDs differ from the canonical list.
 
 The class mapping is unchanged by the model migration. IDs are zero-based, and
-corrected class ID 33 must remain `pass-obstacle-on-either-side`.
+corrected class ID 32 must remain `pass-obstacle-on-either-side`.
 
 > **Deployment scope:** there is no Android or iOS application in the active plan.
 > `docs/android_app_guide.md` and `training/convert_to_ncnn.py` are archival
@@ -69,7 +69,7 @@ Use batch 8 if the Colab GPU runs out of memory. Keep `imgsz=640` for the first
 controlled run. A higher input size is a later challenger and must be tested on the
 same split and deployment hardware.
 
-The script downloads data to Colab local storage, validates all 49 class names,
+The script downloads data to Colab local storage, validates all 63 class names,
 trains the model, exports ONNX and OpenVINO, and copies the run to:
 
 ```text
@@ -120,7 +120,7 @@ thresholds, saved laptop-camera recordings, server, and measurement method.
 | Accept YOLO26s baseline | Precision and recall are each at least 0.80, mAP@0.5 is at least 0.75, and target-server p95 end-to-end latency is at most 500 ms on Intel CPU or 200 ms on the selected GPU server. |
 | Accept OpenVINO export | It passes the same functional tests and loses no more than 0.01 absolute mAP@0.5 versus its `best.pt` source; report latency rather than assuming a speedup. |
 | Use YOLO26n fallback | YOLO26s misses the latency gate, and YOLO26n passes both the latency gate and all minimum quality gates. |
-| Test YOLO26m challenger | Only after all 49 classes have adequate, balanced original data and a GPU server is available. Accept it only if it improves mAP@0.5:0.95 or small-sign recall by at least 0.02 absolute without failing the latency or false-positive gate. |
+| Test YOLO26m challenger | Only after all 63 classes have adequate, balanced original data and a GPU server is available. Accept it only if it improves mAP@0.5:0.95 or small-sign recall by at least 0.02 absolute without failing the latency or false-positive gate. |
 | Enable safe hybrid | Against full-frame YOLO26s on identical recordings, it must improve p95 latency by at least 10% or small-sign recall by at least 0.02 absolute, while reducing no overall recall by more than 0.01 and not increasing false positives per minute. |
 
 Thresholds are selected on validation data, then frozen before the final test. If
@@ -129,7 +129,7 @@ do not claim that it satisfies the final quality gates.
 
 ## 8. Improve data before architecture
 
-The 84-image seed set is not sufficient evidence for a 49-class production model.
+The 84-image seed set is not sufficient evidence for a 63-class production model.
 First add varied originals, laptop-camera examples, hard negatives, and realistic
 training-only blur/noise/compression augmentation. Do not use horizontal or vertical
 flips.

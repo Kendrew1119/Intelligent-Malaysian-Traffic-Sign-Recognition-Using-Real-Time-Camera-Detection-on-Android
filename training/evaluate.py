@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import yaml
 from ultralytics import YOLO
 
 
@@ -20,6 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = REPO_ROOT / "models" / "best.pt"
 DEFAULT_DATA = REPO_ROOT / "dataset" / "data.yaml"
 DEFAULT_PROJECT = REPO_ROOT / "results" / "validation"
+EXPECTED_CLASS_COUNT = 63
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,6 +57,16 @@ def json_value(value: Any) -> Any:
     return value
 
 
+def ordered_names(raw_names: Any) -> list[str]:
+    """Normalize list- or dictionary-style Ultralytics class names."""
+    if isinstance(raw_names, dict):
+        return [
+            str(raw_names.get(index, raw_names.get(str(index))))
+            for index in range(len(raw_names))
+        ]
+    return [str(name) for name in raw_names]
+
+
 def main() -> None:
     args = parse_args()
     if not args.data.is_file():
@@ -63,6 +75,18 @@ def main() -> None:
         raise SystemExit("--imgsz and --batch must be positive; --workers cannot be negative")
 
     model = YOLO(args.model, task="detect")
+    if len(model.names) != EXPECTED_CLASS_COUNT:
+        raise SystemExit(
+            f"Expected {EXPECTED_CLASS_COUNT} model classes, found {len(model.names)}"
+        )
+    data_config = yaml.safe_load(args.data.read_text(encoding="utf-8"))
+    model_names = ordered_names(model.names)
+    data_names = ordered_names(data_config.get("names", []))
+    if model_names != data_names:
+        raise SystemExit(
+            "Model and dataset class-ID orders differ. Evaluate only against the "
+            "exact Roboflow export used by this model; do not remap IDs silently."
+        )
     validation_options = {
         "data": str(args.data),
         "split": args.split,

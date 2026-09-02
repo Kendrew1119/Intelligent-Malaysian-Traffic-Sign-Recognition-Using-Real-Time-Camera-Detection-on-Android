@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f9fc" />
+    <title>MYSignVoice</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="MYSignVoice home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" role="img">
+            <path d="M24 4 44 40H4L24 4Z" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" />
+            <circle cx="24" cy="28" r="3" fill="currentColor" />
+            <path d="M24 16v7" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+          </svg>
+        </span>
+        <span>MYSignVoice</span>
+      </a>
+      <div id="serverStatus" class="server-status" role="status">
+        <span class="status-dot"></span>
+        <span>Starting model</span>
+      </div>
+    </header>
+
+    <main class="page-shell">
+      <section class="intro-row">
+        <div>
+          <h1>See the sign. <span>Hear the guidance.</span></h1>
+        </div>
+        <div class="model-facts" aria-label="Model information">
+          <span>YOLO26s</span>
+          <span>63 signs</span>
+          <span>OpenVINO</span>
+        </div>
+      </section>
+
+      <nav class="mode-switcher" aria-label="Detection source">
+        <button class="mode-button active" data-mode="upload" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v5h14v-5" /></svg>
+          Upload image
+        </button>
+        <button class="mode-button" data-mode="camera" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h3l1.5-2h7l1.5 2h3v11H4v-11Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          Live camera
+        </button>
+      </nav>
+
+      <section class="workspace-grid">
+        <div class="viewer-card">
+          <div id="uploadControls" class="source-controls">
+            <input id="imageInput" type="file" accept="image/jpeg,image/png,image/webp,image/bmp" hidden />
+            <button id="chooseButton" class="button secondary" type="button">Choose image</button>
+            <button id="detectButton" class="button primary" type="button" disabled>Detect signs</button>
+            <span id="fileName" class="file-name">No image selected</span>
+          </div>
+
+          <div id="cameraControls" class="source-controls hidden">
+            <button id="cameraButton" class="button primary" type="button">Start camera</button>
+            <button id="stopCameraButton" class="button secondary hidden" type="button">Stop camera</button>
+            <label class="speech-control">
+              <input id="speechToggle" type="checkbox" checked />
+              <span>Speak confirmed signs</span>
+            </label>
+          </div>
+
+          <div id="dropZone" class="stage" tabindex="0" role="button" aria-label="Choose or drop a traffic sign image">
+            <div id="emptyState" class="empty-state">
+              <div class="empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 64 64"><rect x="9" y="13" width="46" height="38" rx="7"/><circle cx="24" cy="27" r="5"/><path d="m14 46 12-12 9 9 6-6 9 9"/></svg>
+              </div>
+              <strong>Drop a road image here</strong>
+              <span>JPG, PNG, WebP or BMP · up to 12 MB</span>
+            </div>
+            <video id="cameraVideo" autoplay playsinline muted></video>
+            <canvas id="detectionCanvas"></canvas>
+            <div id="processingOverlay" class="processing-overlay hidden" aria-live="polite">
+              <span class="spinner"></span>
+              Detecting signs
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <label for="confidenceSlider">Confidence threshold</label>
+            <input id="confidenceSlider" type="range" min="10" max="70" step="5" value="20" />
+            <output id="confidenceValue" for="confidenceSlider">20%</output>
+          </div>
+
+          <div class="feedback-row">
+            <div>
+              <strong>Incorrect or missed sign?</strong>
+              <span id="hardCaseCount">0 difficult frames saved</span>
+            </div>
+            <button id="hardCaseButton" class="button secondary" type="button" disabled>Save difficult frame</button>
+          </div>
+        </div>
+
+        <aside class="results-card" aria-live="polite">
+          <section id="guidancePanel" class="guidance-panel" data-state="idle" aria-live="polite">
+            <div class="guidance-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 10v4h3l4 3V7L8 10H5Z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+            </div>
+            <div class="guidance-copy">
+              <span>Driver guidance</span>
+              <strong id="guidanceMessage">Ready to detect</strong>
+              <p id="guidanceDetail">Use an image or start the live camera.</p>
+            </div>
+            <span id="guidanceState" class="guidance-state">Ready</span>
+          </section>
+
+          <div class="results-header">
+            <h2>Detections</h2>
+            <span id="detectionCount" class="count-badge">0</span>
+          </div>
+          <div id="resultEmpty" class="result-empty">Results will appear here.</div>
+          <ol id="resultList" class="result-list"></ol>
+          <div id="timingRow" class="timing-row hidden">
+            <span>Processing time</span>
+            <strong id="timingValue">—</strong>
+          </div>
+        </aside>
+      </section>
+
+      <section class="history-section">
+        <div class="history-header">
+          <h2>Detection history</h2>
+          <div class="history-actions">
+            <button id="exportButton" class="text-button" type="button" disabled>Export CSV</button>
+            <button id="clearButton" class="text-button" type="button" disabled>Clear</button>
+          </div>
+        </div>
+        <div id="historyEmpty" class="history-empty">Confirmed detections from this session will be saved here.</div>
+        <div id="historyTableWrap" class="table-wrap hidden">
+          <table>
+            <thead><tr><th>Time</th><th>Sign</th><th>Confidence</th><th>Source</th></tr></thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="hardCaseDialog" class="feedback-dialog">
+      <form id="hardCaseForm">
+        <div class="dialog-header">
+          <h2>Save difficult frame</h2>
+          <button id="dialogCloseButton" class="dialog-close" type="button" aria-label="Close">×</button>
+        </div>
+
+        <label class="form-field">
+          <span>What happened?</span>
+          <select id="issueType" required>
+            <option value="missed">The sign was missed</option>
+            <option value="wrong-class">The class was wrong</option>
+            <option value="false-positive">A sign was detected incorrectly</option>
+            <option value="difficult-condition">Difficult angle, distance or lighting</option>
+          </select>
+        </label>
+
+        <label class="form-field">
+          <span>Correct sign</span>
+          <input id="expectedClass" list="signOptions" autocomplete="off" placeholder="Type or choose a class" required />
+          <datalist id="signOptions"></datalist>
+        </label>
+
+        <label class="form-field">
+          <span>Notes <em>optional</em></span>
+          <textarea id="hardCaseNotes" maxlength="300" rows="3" placeholder="Example: far away, glare, partly covered"></textarea>
+        </label>
+
+        <div class="dialog-note">The original frame and issue details will be saved only in this project folder.</div>
+        <div class="dialog-actions">
+          <button id="dialogCancelButton" class="button secondary" type="button">Cancel</button>
+          <button id="saveHardCaseButton" class="button primary" type="submit">Save frame</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="alert"></div>
+    <script src="/static/camera_safety.js?v=20260902-ocr" defer></script>
+    <script src="/static/app.js?v=20260902-ocr" defer></script>
+  </body>
+</html>

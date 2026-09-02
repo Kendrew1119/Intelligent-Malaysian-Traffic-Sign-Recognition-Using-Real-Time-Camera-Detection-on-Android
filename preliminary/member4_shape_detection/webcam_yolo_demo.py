@@ -25,7 +25,7 @@
 #
 # Usage:
 #   pip install ultralytics opencv-python numpy
-#   python webcam_yolo_demo.py --model path/to/yolo26s_49_class_best.pt
+#   python webcam_yolo_demo.py
 # ============================================
 
 import argparse
@@ -42,18 +42,20 @@ from ultralytics import YOLO
 # ============================================
 # CONFIGURATION - CALIBRATE ON HELD-OUT VIDEO
 # ============================================
-DEFAULT_MODEL_PATH = Path(__file__).with_name("best.pt")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_MODEL_PATH = REPO_ROOT / "models" / "best.pt"
 DEFAULT_CAMERA_INDEX = 0
-EXPECTED_CLASS_COUNT = 49
+EXPECTED_CLASS_COUNT = 63
 CAMERA_WIDTH = 1280
 CAMERA_HEIGHT = 720
 CAMERA_FPS = 30
 SCREENSHOT_DIR = "screenshots"
 
-# YOLO settings. Crop images are passed at their original aspect ratio;
-# Ultralytics performs its own aspect-preserving letterbox operation.
+# YOLO settings. The final ONNX/OpenVINO exports have a fixed 640px input, so
+# full frames and candidate crops must use the same exported input size.
+# Ultralytics still performs aspect-preserving letterbox preprocessing.
 FULL_IMGSZ = 640
-CROP_IMGSZ = 416
+CROP_IMGSZ = 640
 FULL_CONF_THRESHOLD = 0.35
 CROP_CONF_THRESHOLD = 0.30
 CONFIDENCE_STEP = 0.05
@@ -63,9 +65,9 @@ CONFIDENCE_STEP = 0.05
 LEGACY_MODEL_NMS_IOU = 0.45
 MAX_DETECTIONS_PER_IMAGE = 30
 
-# Hybrid scheduling. One 416px crop plus a 640px full scan every fifth frame
-# is usually lighter than full-frame inference every frame. Actual speed
-# depends on the camera scene, number of ROIs, CPU/GPU and export format.
+# Hybrid scheduling. A crop plus a full scan every fifth frame can improve
+# small-sign coverage, but the fixed-size export does not guarantee a speedup.
+# Actual performance must be measured on the deployment laptop.
 HYBRID_FULL_EVERY_N_FRAMES = 5
 HYBRID_ROI_EVERY_N_FRAMES = 1
 MAX_CROPS_PER_FRAME = 2
@@ -255,8 +257,21 @@ def run_yolo_full_frame(model, frame, confidence):
     return detections_from_result(model, results[0], "full")
 
 
+def backend_accepts_batch(model, requested_batch):
+    """Return whether the initialized backend accepts this crop batch size."""
+    predictor = getattr(model, "predictor", None)
+    backend = getattr(predictor, "model", None)
+    if backend is None:
+        return requested_batch == 1
+    if bool(getattr(backend, "pt", False)) or bool(
+        getattr(backend, "dynamic", False)
+    ):
+        return True
+    return int(getattr(backend, "batch", 1) or 1) >= requested_batch
+
+
 def run_yolo_on_regions(model, frame, regions, confidence):
-    """Batch raw ROI crops and map YOLO's original-crop coordinates to frame."""
+    """Infer raw ROI crops and map original-crop coordinates to the frame."""
     crops = []
     valid_regions = []
 
@@ -271,14 +286,29 @@ def run_yolo_on_regions(model, frame, regions, confidence):
     if not crops:
         return []
 
-    results = model.predict(
-        **prediction_options(
-            model,
-            source=crops,
-            image_size=CROP_IMGSZ,
-            confidence=confidence,
+    if backend_accepts_batch(model, len(crops)):
+        results = model.predict(
+            **prediction_options(
+                model,
+                source=crops,
+                image_size=CROP_IMGSZ,
+                confidence=confidence,
+            )
         )
-    )
+    else:
+        # The canonical ONNX/OpenVINO exports use a fixed batch size of one.
+        results = []
+        for crop in crops:
+            results.extend(
+                model.predict(
+                    **prediction_options(
+                        model,
+                        source=crop,
+                        image_size=CROP_IMGSZ,
+                        confidence=confidence,
+                    )
+                )
+            )
 
     detections = []
     for result, region in zip(results, valid_regions):
@@ -473,7 +503,7 @@ def parse_args():
         "--model",
         type=Path,
         default=DEFAULT_MODEL_PATH,
-        help="YOLO model path; the bundled best.pt is for pipeline testing only",
+        help="YOLO model or export path; defaults to the canonical tuned 63-class model",
     )
     parser.add_argument(
         "--camera",

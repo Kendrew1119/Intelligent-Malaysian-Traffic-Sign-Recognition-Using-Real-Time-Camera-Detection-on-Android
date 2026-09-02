@@ -1,0 +1,11 @@
+{
+  "test_speed_limit_instances": 24,
+  "speed_family_recall": 0.875,
+  "detector_exact_accuracy_all_instances": 0.7916666666666666,
+  "hybrid_spoken_coverage": 0.3333333333333333,
+  "hybrid_spoken_accuracy": 1.0,
+  "unique_test_images": 24,
+  "mean_full_pipeline_ms": 351.08750000000003,
+  "confidence_threshold": 0.2,
+  "output_csv": "C:\\Users\\B2B\\Desktop\\miniproject\\models\\speed_limit_reader_report\\hybrid_test.csv"
+}

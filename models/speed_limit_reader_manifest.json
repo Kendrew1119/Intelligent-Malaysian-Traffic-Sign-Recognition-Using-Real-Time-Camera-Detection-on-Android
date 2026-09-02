@@ -1,0 +1,40 @@
+{
+  "model": "SpeedLimitCNN",
+  "purpose": "Read the numeric value after YOLO detects any speed-limit class.",
+  "values": [
+    "5",
+    "15",
+    "30",
+    "40",
+    "50",
+    "60",
+    "80"
+  ],
+  "image_size": 96,
+  "normalization": {
+    "mean": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "std": [
+      0.5,
+      0.5,
+      0.5
+    ]
+  },
+  "minimum_crop_side": 40,
+  "confidence_threshold": 0.85,
+  "training_crops": 609,
+  "validation_crops": 56,
+  "test_crops": 24,
+  "best_validation_accuracy": 0.8035714285714286,
+  "test_accuracy": 0.7916666666666666,
+  "validation_accepted_accuracy": 1.0,
+  "validation_coverage": 0.375,
+  "test_accepted_accuracy": 1.0,
+  "test_coverage": 0.3333333333333333,
+  "training_seconds": 1091.4754645000212,
+  "seed": 42,
+  "caution": "The exported test split contains few examples for several values; camera validation is still required."
+}

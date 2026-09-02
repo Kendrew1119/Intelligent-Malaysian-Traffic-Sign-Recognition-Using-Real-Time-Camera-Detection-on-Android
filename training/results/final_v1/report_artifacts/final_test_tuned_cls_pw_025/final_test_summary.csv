@@ -1,0 +1,2 @@
+model,checkpoint,evaluation_split,precision,recall,F1,mAP50,mAP50-95
+YOLO26s tuned cls_pw=0.25,/workspace/mysignvoice_runs/yolo26s_63class_rf_v1_fresh/tuning/yolo26s_cls_pw_025/weights/best.pt,test,0.9616156856097227,0.8692282894609848,0.913090977606773,0.9483898878117379,0.8042814787456736

@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = REPO_ROOT / "models" / "best.pt"
 DEFAULT_OUTPUT = REPO_ROOT / "results" / "image_smoke_test"
 IMAGE_SUFFIXES = {".bmp", ".dng", ".jpeg", ".jpg", ".mpo", ".png", ".tif", ".tiff", ".webp"}
+EXPECTED_CLASS_COUNT = 63
 
 
 def parse_args() -> argparse.Namespace:
@@ -85,6 +86,10 @@ def main() -> None:
 
     args.output.mkdir(parents=True, exist_ok=True)
     model = YOLO(args.model, task="detect")
+    if len(model.names) != EXPECTED_CLASS_COUNT:
+        raise SystemExit(
+            f"Expected {EXPECTED_CLASS_COUNT} model classes, found {len(model.names)}"
+        )
     predict_options = {
         "conf": args.conf,
         "imgsz": args.imgsz,

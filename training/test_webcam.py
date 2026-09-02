@@ -17,6 +17,7 @@ from ultralytics import YOLO
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = REPO_ROOT / "models" / "best.pt"
+EXPECTED_CLASS_COUNT = 63
 
 
 def parse_args() -> argparse.Namespace:
@@ -46,6 +47,10 @@ def main() -> None:
         raise SystemExit("--imgsz, --width, and --height must be greater than zero")
 
     model = YOLO(args.model, task="detect")
+    if len(model.names) != EXPECTED_CLASS_COUNT:
+        raise SystemExit(
+            f"Expected {EXPECTED_CLASS_COUNT} model classes, found {len(model.names)}"
+        )
     capture = cv2.VideoCapture(args.camera)
     if not capture.isOpened():
         raise SystemExit(f"Could not open camera index {args.camera}")

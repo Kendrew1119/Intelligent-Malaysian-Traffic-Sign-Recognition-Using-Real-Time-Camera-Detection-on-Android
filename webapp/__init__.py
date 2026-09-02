@@ -1,0 +1,2 @@
+"""MYSignVoice local web application."""
+

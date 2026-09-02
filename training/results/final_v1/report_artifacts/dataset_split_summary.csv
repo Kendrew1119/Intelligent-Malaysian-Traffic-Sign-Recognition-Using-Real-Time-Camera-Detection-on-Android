@@ -1,0 +1,4 @@
+split,images,annotated_images,background_images,bounding_boxes
+train,5475,5456,19,5745
+valid,1564,1559,5,1657
+test,782,779,3,811

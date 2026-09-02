@@ -31,9 +31,9 @@ The project follows an iterative prototyping methodology:
 | Preliminary image processing | OpenCV 4, C++17 | HSV masks, morphology, contours, shape visualisation and webcam demonstration |
 | Annotation and augmentation | Roboflow or equivalent YOLO-format annotation tool; project augmentation scripts | Bounding-box labels, dataset checks and training augmentation |
 | Model training | Ultralytics YOLO26s, Python, Google Colab GPU | Transfer learning at 640, validation and controlled model comparison |
-| Web backend | Python, Flask or FastAPI | Serve YOLO inference API, handle webcam streams and file uploads |
+| Web backend | Python and FastAPI | Load OpenVINO once and serve in-memory frame/image inference |
 | Web frontend | HTML, CSS, JavaScript | Camera access via WebRTC, display bounding boxes, class labels and confidence |
-| Real-time communication | WebSocket (Flask-SocketIO or FastAPI WebSocket) | Stream webcam frames from browser to server and return results in real time |
+| Real-time communication | Throttled HTTP POST | Send the next compressed webcam frame only after the previous request completes |
 | Deployment optimization | OpenVINO on Intel CPU; YOLO26 end-to-end output; cross-pass IoU merge and temporal matching; optional OpenCV ROI proposals | Preserve geometry, avoid detector NMS overhead, merge full/crop outputs and reduce one-frame noise |
 | Development environment | VS Code, Python 3.10+ | Backend development and testing |
 | Preliminary C++ work | Microsoft Visual Studio 2022, OpenCV 4 | Build and run the preliminary shape detection programs |
@@ -56,7 +56,7 @@ The system shall:
 
 ### 3.1.5 Dataset Requirement and Feasibility
 
-The 84 supplied images are suitable for demonstrating the OpenCV preliminary method, but they are **not sufficient to train a reliable 49-class YOLO detector**: this is fewer than two original images per class on average. Augmentation creates useful variation but cannot replace different real images, backgrounds, distances and lighting conditions. The canonical zero-based class IDs and hyphenated names remain frozen in `dataset/data.yaml`; corrected class ID 33 is `pass-obstacle-on-either-side`.
+The 84 supplied images are suitable for demonstrating the OpenCV preliminary method, but they are **not sufficient to train a reliable 63-class YOLO detector**. Augmentation creates useful variation but cannot replace different real images, backgrounds, distances and lighting conditions. The canonical zero-based class IDs and hyphenated names remain frozen in `dataset/data.yaml`; corrected class ID 32 is `pass-obstacle-on-either-side` and the approved Malaysian-road-sign expansion occupies IDs 47–62.
 
 For the final model, the minimum target is at least **50 original labelled images per class** (about 2,450 images), with a higher target of 100 or more images per class when possible. Each class should appear at close, medium and distant scales and under varied backgrounds, angles, illumination, blur and partial obstruction. The dataset should include laptop-camera images and background-only hard negatives such as red vehicles, blue information boards, yellow vegetation, lamps and coloured clothing. Video frames must be split by recording session rather than placing adjacent frames across train and test sets. Training augmentation may increase the number of training examples, but validation and test images must remain original, unseen images. If this collection target cannot be achieved, the team should reduce the final class scope and state the revised scope honestly.
 
@@ -68,7 +68,7 @@ The following are project performance targets, not guaranteed results:
 |---|---|---:|
 | Preliminary segmentation detection rate | Images producing a valid non-Polygon OpenCV shape result / 84 supplied images | Report measured result separately; current code result is a preliminary baseline |
 | YOLO precision and recall | Detection correctness and coverage on the held-out test set | ≥ 0.80 each, subject to sufficient balanced data |
-| mAP@0.5 | Mean average precision at IoU 0.5 over 49 classes | ≥ 0.75, subject to sufficient balanced data |
+| mAP@0.5 | Mean average precision at IoU 0.5 over 63 classes | ≥ 0.75, subject to sufficient balanced data |
 | Web responsiveness | Time from frame submission to annotated result returned | < 200ms per frame on a machine with a modern GPU; < 500ms on CPU |
 | Temporal confirmation | A displayed/announced detection matches the same class and an overlapping box across consecutive frames | 2–3 frames, tuned on validation videos |
 | Hybrid acceptance gate | Safe hybrid compared with pure full-frame YOLO on identical laptop recordings | Adopt ROI optimization only if it improves the selected latency/recall/false-positive trade-off |
@@ -151,7 +151,7 @@ In final deployment, OpenCV candidate generation is optional and may return mult
 
 ```mermaid
 flowchart LR
-    A["Collect 49-Class Originals\nLaptop Camera + Hard Negatives"] --> B["Annotate Bounding Boxes\nYOLO Format"]
+    A["Collect 64-Class Originals\nLaptop Camera + Hard Negatives"] --> B["Annotate Bounding Boxes\nYOLO Format"]
     B --> C["Split by Source / Recording Session\nTrain / Validation / Test"]
     C --> D["Training-only Camera Augmentation\nLight, Blur, Noise, Compression, Perspective"]
     D --> E["Fine-tune Pretrained YOLO26s at 640\nGoogle Colab"]
@@ -171,7 +171,7 @@ The baseline fine-tunes standard pretrained YOLO26s at `imgsz=640` without a cus
 flowchart TD
     subgraph Browser["Web Browser (Frontend)"]
         A["Webcam Access via WebRTC"] --> B["Capture 1280×720 Frame"]
-        B --> C["Send Frame via WebSocket"]
+        B --> C["Send Frame via Throttled HTTP"]
         O["Receive Confirmed / Uncertain Result"] --> P["Draw Confirmed Boxes on Canvas"]
         P --> Q["Update History / Audio Alert"]
     end
@@ -194,11 +194,11 @@ flowchart TD
     end
 ```
 
-The desktop/laptop web frontend captures preferably 1280×720 webcam frames using the browser's `getUserMedia` API and sends them to the Python backend via WebSocket, or uses HTTP POST for uploaded images/videos. The backend loads the validated YOLO26s OpenVINO model once at startup on an Intel CPU server; a GPU server may use the validated GPU format. Frames and crops are not stretched to 640×640; their aspect ratios are retained and letterboxed to the 640 baseline. Full-frame inference runs periodically, while optional ROI inference supplies additional evidence for small candidates. Only temporally confirmed detections are displayed or announced.
+The desktop/laptop web frontend captures preferably 1280×720 webcam frames using the browser's `getUserMedia` API and sends one compressed frame at a time to the Python backend through HTTP POST. The next request starts only after the previous request finishes, preventing a frame backlog on the CPU. The backend loads the validated YOLO26s OpenVINO model once at startup. Frames retain their aspect ratio and are letterboxed internally to the 640 baseline. Full-frame inference is the active mode; the optional ROI branch remains disabled unless later camera benchmarks satisfy its acceptance gates. Current detections are displayed immediately, while history and speech require the same class in two consecutive processed frames.
 
 ### 3.2.6 Relationship Between Preliminary Work and Final System
 
-The preliminary work successfully demonstrates the classical image-processing concepts required by the project: colour segmentation, noise reduction, contour detection, geometric filtering and real-time visualisation. It should be presented as a preliminary candidate/shape-detection method, not as a 49-class recogniser. The final system adds the YOLO26s CNN to recognise the sign pictogram and distinguish classes that share the same colour and shape. OpenCV remains useful for explanation and optional ROI proposals, while periodic full-frame YOLO preserves a recovery path. This is a logical and defensible progression from traditional computer vision to deep-learning recognition.
+The preliminary work successfully demonstrates the classical image-processing concepts required by the project: colour segmentation, noise reduction, contour detection, geometric filtering and real-time visualisation. It should be presented as a preliminary candidate/shape-detection method, not as a 63-class recogniser. The final system adds the YOLO26s CNN to recognise the sign pictogram and distinguish classes that share the same colour and shape. OpenCV remains useful for explanation and optional ROI proposals, while periodic full-frame YOLO preserves a recovery path. This is a logical and defensible progression from traditional computer vision to deep-learning recognition.
 
 ### 3.2.7 Deployment Benchmark and Acceptance Gates
 
@@ -214,4 +214,4 @@ Record end-to-end median and 95th-percentile latency, processed FPS, sign-level 
 
 The safe hybrid is enabled only if, against full-frame YOLO26s on identical recordings, it improves p95 latency by at least 10% or small-sign recall by at least 0.02 absolute, while reducing no overall recall by more than 0.01 and not increasing false positives per minute. Candidate-count limits, full-frame interval, confidence threshold, cross-pass merge IoU and temporal window are tuned on validation videos and frozen before final testing.
 
-The implemented laptop prototype is `preliminary/member4_shape_detection/webcam_yolo_demo.py`; pass the newly trained 49-class weights with `--model`. The repeatable detector-stage comparison is `preliminary/member4_shape_detection/benchmark_pipeline_modes.py`. It writes JSON and CSV for all three modes, computes class-aware precision/recall/F1 when YOLO labels are supplied, and reports false detections per input minute when a known no-sign source is supplied. Its raw metrics are calculated before the webcam demo's temporal confirmation so that filtering cannot hide one-frame detector errors.
+The implemented laptop prototype is `preliminary/member4_shape_detection/webcam_yolo_demo.py`; pass the newly trained 63-class weights with `--model`. The repeatable detector-stage comparison is `preliminary/member4_shape_detection/benchmark_pipeline_modes.py`. It writes JSON and CSV for all three modes, computes class-aware precision/recall/F1 when YOLO labels are supplied, and reports false detections per input minute when a known no-sign source is supplied. Its raw metrics are calculated before the webcam demo's temporal confirmation so that filtering cannot hide one-frame detector errors.

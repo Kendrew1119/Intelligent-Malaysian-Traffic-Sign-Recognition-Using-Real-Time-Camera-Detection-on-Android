@@ -1,8 +1,9 @@
 # MYSignVoice — Dataset and Manual Labelling Guide
 
-The project now has a reviewed **49-class, 84-image seed inventory**. The canonical
+The project now has a reviewed **47-class, 84-image seed inventory** and a
+**63-class** canonical training inventory after the Malaysian expansion. The canonical
 class names and YOLO IDs are in `dataset/data.yaml`; the annotated inventory workbook
-is `class.xlsx`. Use the dedicated [49-Class Roboflow Annotation Plan](dataset_relabeling_guide.md)
+is `class.xlsx`. Use the dedicated [62-Class Roboflow Annotation Plan](dataset_relabeling_guide.md)
 for the current procedure and [Google Colab Training Guide](roboflow_training_guide.md)
 for the active YOLO26s server-side training and deployment workflow. The annotation
 format remains ordinary Ultralytics YOLO detection format; changing from YOLOv8 to
@@ -18,11 +19,11 @@ YOLO26 does not change any label ID or bounding-box text file.
 1. Label only the sign with a tight object-detection bounding box—not its pole or
    background.
 2. Every class name must exactly match `dataset/data.yaml`, including spelling,
-   hyphens, and order. IDs are zero-based; the corrected class ID 33 is
+   hyphens, and order. IDs are zero-based; the corrected class ID 32 is
    `pass-obstacle-on-either-side`.
 3. Add real, varied images for every class. The 84 supplied images alone contain
    only one to four instances of each class, which cannot support reliable
-   49-class evaluation.
+   63-class evaluation.
 4. Split original images into train, validation, and test before augmentation.
    Augment training data only; never use horizontal/vertical flips for directional
    signs.

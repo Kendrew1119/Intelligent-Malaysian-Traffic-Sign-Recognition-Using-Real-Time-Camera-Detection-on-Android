@@ -61,13 +61,14 @@ The assignment frames the proposal as competing for RM 1,000,000 funding. This i
 
 | Feature | Description | Technical Component |
 |---------|-------------|-------------------|
-| **Real-time webcam detection** | Live detection from a laptop browser webcam | WebRTC + WebSocket + YOLO26s |
+| **Real-time webcam detection** | Live detection from a laptop browser webcam | `getUserMedia` + throttled HTTP + YOLO26s |
 | **Image/video upload** | Upload a photo or video for batch detection | HTTP upload + YOLO26s |
 | **Bounding box overlay** | Draw detected sign bounding boxes on the video/image | HTML Canvas / JavaScript |
 | **Class labels + confidence** | Display sign name and confidence percentage | JSON response from backend |
 | **Detection history log** | Scrollable list of recent detections with timestamps | Frontend state management |
-| **Confidence threshold slider** | Adjustable sensitivity (default 0.5, range 0.3–0.9) | Settings panel |
-| **Sign meaning database** | JSON database mapping 49 sign IDs → name → description | Server-side JSON file |
+| **Difficult-frame collection** | Save user-confirmed misses, wrong classes and false positives for later annotation | Local image folder + JSONL metadata |
+| **Confidence threshold slider** | Adjustable sensitivity (default 0.20, range 0.10–0.70) | Settings panel |
+| **Sign meaning database** | JSON database mapping 63 sign IDs → name → description | Server-side JSON file |
 | **Export results** | Download detection results as CSV or annotated images | Backend export endpoint |
 | **Desktop web design** | Works in Chrome, Firefox and Edge on the target desktop/laptop | CSS web layout; no native mobile app |
 | **Multi-sign detection** | Detect multiple signs in a single frame | YOLO multi-object output |
@@ -85,18 +86,20 @@ The assignment frames the proposal as competing for RM 1,000,000 funding. This i
                  [Export Results]
 ```
 
-### Malaysian Road Signs to Support (Minimum 49 Classes)
+### Malaysian Road Signs to Support (63 Classes)
 
-The canonical zero-based IDs and 49 hyphenated names are in `dataset/data.yaml`.
-Do not infer or add classes from generic traffic-sign lists. Corrected class ID 33
-is `pass-obstacle-on-either-side`.
+The canonical zero-based IDs and 63 hyphenated names are in `dataset/data.yaml`.
+The reviewed 47-class seed list occupies IDs 0–46; the approved Malaysia-road-sign
+expansion occupies IDs 47–62. Do not infer or add classes from generic traffic-sign
+lists. Corrected class ID 32 is `pass-obstacle-on-either-side`.
 
 | Inventory group | Examples from the locked list | Exact class count |
 |---|---|---:|
-| **Blue signs** | straight-only, left/right directions, pass-right, roundabout, cars-only, use-horn, bicycle-path | 12 |
+| **Blue signs** | straight-only, left/right directions, pass-right, roundabout, cars-only, use-horn, bicycle-path | 11 |
 | **Red signs** | seven supported speed limits, prohibitions, stop-sign, no-entry, give-way, stop-for-inspection | 21 |
-| **Yellow signs** | traffic-light/general warnings, crossings, turns, descent, construction, slippery road, railway warnings | 16 |
-| **Total** | See `dataset/data.yaml` for all exact names and IDs | **49** |
+| **Yellow signs** | traffic-light/general warnings, crossings, turns, descent, construction, slippery road, railway warnings | 15 |
+| **Approved expansion** | bumps, bus-stop, camera-operation-zone, cow-nearby-warning, limits/parking/towing, chevrons, crossroad/road-narrow/diverge warnings, reverse-turn-warning | 16 |
+| **Total** | See `dataset/data.yaml` for all exact names and IDs | **63** |
 
 ---
 
@@ -107,9 +110,9 @@ is `pass-obstacle-on-either-side`.
 | Component | Technology | Why | Beginner Tip |
 |-----------|-----------|-----|-------------|
 | **Core Logic** | **C++17** | Required by course. Used for preliminary image processing | You already know this well |
-| **Web Backend** | **Python + Flask/FastAPI** | Serves YOLO inference API, handles uploads and WebSocket streams | Flask is very beginner-friendly |
+| **Web Backend** | **Python + FastAPI** | Loads OpenVINO once and serves image/frame inference | `/api/health` confirms readiness |
 | **Web Frontend** | **HTML + CSS + JavaScript** | Camera access, display results, interactive UI | Standard web technologies |
-| **Real-time Streaming** | **WebSocket (Flask-SocketIO)** | Stream webcam frames to server and return results in real time | Like a live chat but with image data |
+| **Real-time Communication** | **Throttled HTTP POST** | Sends one compressed webcam frame at a time without a request queue | Simple and adequate for the measured CPU latency |
 | **ML Inference** | **Ultralytics YOLO26s** | Default end-to-end, NMS-free server inference at 640 | Validate `best.pt` before export |
 | **Intel CPU deployment** | **OpenVINO** | Optimize and serve the validated YOLO26 export on Intel hardware | Compare export accuracy and latency |
 | **Image Processing** | **OpenCV (Python)** | Resize, convert, draw bounding boxes server-side | Same OpenCV you used in C++, but in Python |
@@ -127,7 +130,7 @@ is `pass-obstacle-on-either-side`.
 │         │                │                │         │
 │         ▼                │                │         │
 │  ┌──────────────────────────────────────────────┐   │
-│  │          WebSocket / HTTP Connection          │   │
+│  │          Throttled HTTP Connection            │   │
 │  └──────────────────────┬───────────────────────┘   │
 └─────────────────────────┼───────────────────────────┘
                           │
@@ -261,8 +264,8 @@ Use a frozen test split and the same saved laptop-camera videos for all candidat
 
 | Week | Focus | Deliverables | Who |
 |------|-------|-------------|-----|
-| **8** | **Dataset + Model Training** | • Complete and audit the 49-class dataset • Apply training-only augmentation • Train YOLO26s at 640 on Google Colab • Evaluate held-out metrics • Export and validate OpenVINO for Intel CPU | Member 3 (dataset) + Member 4 (training), Member 1 & 2 (help annotate + start web scaffold) |
-| **9** | **Web App Core** | • Flask/FastAPI backend with YOLO inference endpoint (Member 2) • WebSocket for real-time webcam streaming (Member 2) • Frontend: webcam view + bounding box canvas overlay (Member 1) • Sign database JSON (Member 3) • Model testing pipeline (Member 4) • **Integration day**: combine frontend → backend → YOLO → display | Member 1 (frontend), Member 2 (backend), Member 3 (database), Member 4 (model) |
+| **8** | **Dataset + Model Training** | • Complete and audit the 63-class dataset • Apply training-only augmentation • Train YOLO26s at 640 on Google Colab • Evaluate held-out metrics • Export and validate OpenVINO for Intel CPU | Member 3 (dataset) + Member 4 (training), Member 1 & 2 (help annotate + start web scaffold) |
+| **9** | **Web App Core** | • FastAPI backend with OpenVINO inference endpoint (Member 2) • Throttled HTTP webcam-frame submission (Member 2) • Frontend: webcam view + bounding box canvas overlay (Member 1) • Sign database JSON (Member 3) • Model testing pipeline (Member 4) • **Integration day**: combine frontend → backend → YOLO → display | Member 1 (frontend), Member 2 (backend), Member 3 (database), Member 4 (model) |
 | **10** | **Features + Testing** | • Image/video upload working • Detection history log • Confidence threshold slider • Test on all 84 provided images → log recognition rate • Test on uploaded videos from real roads • Bug fixes, performance tuning (<2 sec requirement) | All |
 
 ### Phase 3: Final Report & Presentation (Weeks 11–14)
@@ -334,10 +337,10 @@ Use a frozen test split and the same saved laptop-camera videos for all candidat
 
 | Component | Member | Details |
 |-----------|--------|---------|
-| **Frontend: Webcam + Live View** | Member 1 | WebRTC camera access, frame capture, send frames via WebSocket |
+| **Frontend: Webcam + Live View** | Member 1 | Browser camera access and one-at-a-time compressed HTTP frames |
 | **Frontend: Detection Overlay** | Member 1 | Draw bounding boxes and labels on HTML Canvas |
-| **Frontend: UI Design** | Member 1 | Responsive layout, settings panel, detection history, dark theme |
-| **Backend: Flask/FastAPI Server** | Member 2 | API endpoints, WebSocket handler, file upload handler |
+| **Frontend: UI Design** | Member 1 | Spacious light theme, confidence control and detection history |
+| **Backend: FastAPI Server** | Member 2 | Health endpoint and in-memory image/frame inference handler |
 | **Backend: YOLO Inference** | Member 2 | Load best.pt, run inference, return JSON results |
 | **Backend: OpenCV Processing** | Member 2 | Resize, color convert, draw bounding boxes for export |
 | **Dataset Collection** | Member 3 | Collect at least 50 original labelled images for each of the 49 final classes |
@@ -578,10 +581,10 @@ Current situation:
 
 Please help me with:
 1. A Python script to organize and rename images into a YOLO-compatible folder structure
-2. Validation of the existing 49-class data.yaml for Ultralytics YOLO26 training
+2. Validation of the active 63-class data.yaml for Ultralytics YOLO26 training
 3. A Python script using albumentations to augment the dataset
-4. Verification that the 49 canonical hyphenated names and IDs are unchanged,
-   including corrected class ID 33 = pass-obstacle-on-either-side
+4. Verification that the 63 canonical hyphenated names and IDs are unchanged,
+   including corrected class ID 32 = pass-obstacle-on-either-side
 5. Instructions on how to use Roboflow (free tier) for bounding box annotation
 6. A validation split script (80% train, 10% validation, 10% test)
 ```

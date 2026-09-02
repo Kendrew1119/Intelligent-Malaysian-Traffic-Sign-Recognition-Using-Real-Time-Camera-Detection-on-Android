@@ -1,12 +1,12 @@
 # MYSignVoice Dataset Collection and Management Guide
 
-This is the active collection guide for the 49-class YOLO26s web system. The objective is not merely a large image count: it is a balanced set of correctly boxed signs, realistic laptop-camera scenes, and hard negatives that are independent across train, validation, and test splits.
+This is the active collection guide for the 63-class YOLO26s web system. The objective is not merely a large image count: it is a balanced set of correctly boxed signs, realistic laptop-camera scenes, and hard negatives that are independent across train, validation, and test splits.
 
 ## 1. Class contract
 
-`dataset/data.yaml` is authoritative. Roboflow must contain the same 49 class names in the same order. Keep the lowercase dash-separated names; do not change them to underscores after annotation starts. Class 33 is `pass-obstacle-on-either-side`.
+`dataset/data.yaml` is authoritative. Roboflow must contain the same 63 class names in the same order. Keep the lowercase dash-separated names; do not change them to underscores after annotation starts. Class 32 is `pass-obstacle-on-either-side`; IDs 47–62 are the approved Malaysian-road-sign expansion.
 
-Every bounding box should tightly cover the complete visible sign face. In any retained image, label every visible instance that belongs to one of the 49 target classes. A missing box teaches the detector that a real target can be background.
+Every bounding box should tightly cover the complete visible sign face. In any retained image, label every visible instance that belongs to one of the 63 target classes. A missing box teaches the detector that a real target can be background.
 
 ## 2. Fast collection methods
 
@@ -38,6 +38,39 @@ If an image contains a canonical target sign, it must be boxed even when the ori
 
 Public sources can accelerate common classes, but Malaysian signs and laptop-camera footage are still required for the target domain.
 
+### Approved Malaysia road sign source mapping
+
+The Roboflow workspace's **Malaysia road sign dataset** has compatible
+annotations for the following approved additions. Preserve the boxes, but map the
+source label to the exact target label before it enters a MYSignVoice dataset
+version:
+
+| Source label | MYSignVoice label |
+|---|---|
+| Bumps | `bumps-warning` |
+| Bus stop | `bus-stop` |
+| Camera operation zone | `camera-operation-zone` |
+| Cow nearby | `cow-nearby-warning` |
+| Height limit | `height-limit` |
+| No parking | `no-parking` |
+| Parking area | `parking-area` |
+| Towing area | `towing-area` |
+| Chevron (left) | `chevron-left` |
+| Chevron (right) | `chevron-right` |
+| Crossroad on the left | `crossroad-left-warning` |
+| Crossroad on the right | `crossroad-right-warning` |
+| Road narrows on left | `road-narrows-left-warning` |
+| Road narrows on right | `road-narrows-right-warning` |
+| Roadway diverges | `roadway-diverges-warning` |
+| Reverse turn | `reverse-turn-warning` |
+
+Do not import that dataset's generic `Speed limit` class: it does not identify
+the numeric limit and cannot safely map to the existing speed-limit labels.
+When a selected image also contains another target sign, label or map that sign
+too; otherwise remove the image from the import set. Do not retain source-only
+annotations under their original names, because that would create an unintended
+64th class or a mislabeled training box.
+
 ### Targeted image search
 
 Use exact queries for underrepresented classes and Malaysian variants. Verify reuse permission, remove duplicates/watermarks where necessary, and avoid filling the test set with internet images seen during collection decisions.
@@ -46,11 +79,11 @@ Use exact queries for underrepresented classes and Malaysian variants. Verify re
 
 Use staged targets rather than waiting for a perfect dataset:
 
-- Pilot: enough correctly labelled examples to verify all 49 class IDs and complete one training run.
+- Pilot: enough correctly labelled examples to verify all 63 class IDs and complete one training run.
 - Baseline: aim for at least dozens of diverse real instances per class, with more for classes that are visually similar or frequently missed.
 - Improvement rounds: collect examples from actual failure cases instead of applying ever-stronger augmentation.
 
-The existing 84 images are useful seeds, but they cannot establish reliable 49-class performance. Augmented copies do not count as independent real examples.
+The existing 84 images are useful seeds, but they cannot establish reliable 63-class performance. Augmented copies do not count as independent real examples.
 
 ## 4. Image quality and storage
 
@@ -70,7 +103,7 @@ miniproject/
     │   └── test/
     │       ├── images/
     │       └── labels/
-    └── data.yaml                    # Locked 49-class Ultralytics configuration
+    └── data.yaml                    # Locked 63-class Ultralytics configuration
 ```
 
 Store versioned Roboflow exports or compressed dataset archives in Google Drive/OneDrive, not Git. In Colab, copy the dataset archive to the VM disk before training to avoid slow per-file reads from mounted Drive.
@@ -93,8 +126,8 @@ More varied original images and correct labels usually provide more value than a
 
 ## 7. Pre-training checklist
 
-- `nc: 49` and all names/order match `dataset/data.yaml`.
-- `pass-obstacle-on-either-side` is class ID 33.
+- `nc: 63` and all names/order match `dataset/data.yaml`.
+- `pass-obstacle-on-either-side` is class ID 32.
 - Every target sign in each retained image has a tight box.
 - No image/label pair is missing, except intentional negatives with empty labels.
 - No near-duplicate scene crosses train/validation/test.

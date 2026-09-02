@@ -45,7 +45,7 @@ Camera Frame
 | Classical OpenCV preliminary method | Final YOLO26s model |
 |---|---|
 | Detects red, blue and yellow regions | Recognises the exact traffic-sign class |
-| Identifies Circle, Triangle, Rectangle or Octagon | Distinguishes 49 classes, such as different speed limits |
+| Identifies Circle, Triangle, Rectangle or Octagon | Distinguishes 63 classes, such as different speed limits |
 | Fast and explainable | More robust to different pictograms and complex scenes |
 | Can be affected by glare, shadows and similar-colour backgrounds | Learns visual features from labelled training data |
 
@@ -60,7 +60,7 @@ Camera Frame
 ## Slide 4 — Chapter 3: YOLO26s Dataset and Training Plan
 
 ```text
-Collect 49-class images
+Collect 63-class images
     → Annotate bounding boxes
     → Split train / validation / test
     → Training-only augmentation
@@ -74,7 +74,7 @@ Collect 49-class images
 - Evaluate using precision, recall, mAP@0.5 and confusion matrix.
 - Deploy the selected model on Android using NCNN.
 
-**Important point:** The 84 existing images are for preliminary OpenCV testing only. They are not enough to train a reliable 49-class YOLO model. Collect at least 50 original labelled images per class before augmentation.
+**Important point:** The 84 existing images are for preliminary OpenCV testing only. They are not enough to train a reliable 63-class YOLO model. Collect at least 50 original labelled images per class before augmentation.
 
 **Image to insert:** Screenshot/redraw of the **YOLO training and deployment diagram** from `enhanced_block_diagram.md` section 3.2.4.
 
@@ -133,7 +133,7 @@ Input image
 
 **Image to insert:** Take a screenshot during your live demo with **M** enabled.
 
-**Say:** “This is a colour-and-shape demonstration, not the final 49-class recognition model.”
+**Say:** “This is a colour-and-shape demonstration, not the final 63-class recognition model.”
 
 ---
 
@@ -164,7 +164,7 @@ Add a small caption: **“Glare and incomplete blue mask cause Polygon output.�
 - Preliminary OpenCV pipeline successfully demonstrates segmentation and shape detection: **92.9% (78/84)** geometric shape accuracy.
 - The method is useful for candidate detection and visual explanation.
 - It cannot identify the exact sign pictogram/class by itself.
-- Next step: collect balanced 49-class data, annotate, augment the training split and train YOLO26s at a 640-pixel baseline.
+- Next step: collect balanced 63-class data, annotate, augment the training split and train YOLO26s at a 640-pixel baseline.
 - Final system: server-side YOLO26s/OpenVINO recognition + laptop-browser camera + web display/speech output.
 
 **Closing sentence:** “The preliminary image-processing result provides the foundation, while the validated YOLO26s server pipeline will recognise the actual Malaysian traffic-sign class.”
@@ -180,4 +180,4 @@ Add a small caption: **“Glare and incomplete blue mask cause Polygon output.�
 - [ ] Capture one live-camera screenshot with the **M** mask view for Slide 7.
 - [ ] Insert the blue failure grid on Slide 8.
 - [ ] Prepare one red, one blue and one yellow printed/on-screen sign for the live camera demonstration.
-- [ ] Say “shape-classification accuracy” for the 92.9% result; do not describe it as 49-class recognition accuracy.
+- [ ] Say “shape-classification accuracy” for the 92.9% result; do not describe it as 63-class recognition accuracy.

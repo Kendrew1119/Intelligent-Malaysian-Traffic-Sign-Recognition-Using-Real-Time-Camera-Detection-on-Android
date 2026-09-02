@@ -24,13 +24,13 @@ frames, following the common YOLO convention.
 Examples:
 
     python benchmark_pipeline_modes.py \
-        --model yolo26s_49_class_best.pt --source test_images --labels test_labels \
+        --model models/best.pt --source test_images --labels test_labels \
         --output benchmark_results
 
     python benchmark_pipeline_modes.py \
-        --model yolo26s_49_class_best.pt --source signs.mp4 \
+        --model models/best.pt --source signs.mp4 \
         --no-sign-source backgrounds.mp4 \
-        --output benchmark_results --imgsz 640 --roi-imgsz 416 --full-interval 5
+        --output benchmark_results --imgsz 640 --roi-imgsz 640 --full-interval 5
 """
 
 from __future__ import annotations
@@ -233,7 +233,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--imgsz", type=int, default=640, help="Full-frame YOLO size")
     parser.add_argument(
-        "--roi-imgsz", type=int, default=416, help="YOLO size for candidate crops"
+        "--roi-imgsz",
+        type=int,
+        default=640,
+        help="YOLO size for candidate crops; fixed-size final exports require 640",
     )
     parser.add_argument(
         "--conf", type=float, default=0.35, help="Full-frame confidence threshold"
@@ -518,7 +521,6 @@ def predict_regions(
         return [], 0
 
     options = {
-        "source": crops,
         "imgsz": args.roi_imgsz,
         "conf": args.roi_conf,
         "max_det": args.max_det,
@@ -527,7 +529,20 @@ def predict_regions(
     add_model_postprocessing_options(options, model, args)
     if args.device is not None:
         options["device"] = args.device
-    results = model.predict(**options)
+
+    predictor = getattr(model, "predictor", None)
+    backend = getattr(predictor, "model", None)
+    dynamic_or_pytorch = bool(getattr(backend, "dynamic", False)) or bool(
+        getattr(backend, "pt", False)
+    )
+    backend_batch = int(getattr(backend, "batch", 1) or 1)
+    if dynamic_or_pytorch or backend_batch >= len(crops):
+        results = model.predict(source=crops, **options)
+    else:
+        # Fixed-batch ONNX/OpenVINO exports are evaluated one crop at a time.
+        results = []
+        for crop in crops:
+            results.extend(model.predict(source=crop, **options))
 
     detections: List[Detection] = []
     for result, (x1, y1) in zip(results, offsets):
